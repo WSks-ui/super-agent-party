@@ -14889,7 +14889,7 @@ async handleRefreshSkills() {
     // 创建任务
     async submitCreateTask() {
         if (!this.newTaskForm.title || !this.newTaskForm.description) {
-            this.$message.warning(this.t('fillRequired') || '请完善任务信息');
+            showNotification(this.t('fillRequired'), 'error');
             return;
         }
 
