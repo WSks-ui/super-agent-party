@@ -221,7 +221,7 @@ function updateElement(el, rawMarkdown, formatFn) {
       <el-dialog
         v-model="showLogoDialog"
         :title="t('logoPage')"
-        width="90%">
+        width="90%"> 
         <!-- logo页面 -->
           <div class="license-notice">
             <h1>Super Agent Party v0.3.8</h1>
@@ -246,10 +246,10 @@ function updateElement(el, rawMarkdown, formatFn) {
             <div class="social-links">
               <div class="link-item">
                 <span>Official Website：</span>
-                <a href="https://super-agent-party.github.io/" 
+                <a href="https://www.agentparty.top/" 
                   target="_blank" 
                   class="social-link">
-                  super-agent-party.github.io
+                  www.agentparty.top
                 </a>
               </div>
 
@@ -304,7 +304,7 @@ function updateElement(el, rawMarkdown, formatFn) {
               </div>
 
               <div class="link-item">
-                <span>中文文档：</span>
+                <span>中文使用指南：</span>
                 <a href="https://gcnij7egmcww.feishu.cn/wiki/DPRKwdetCiYBhPkPpXWcugujnRc" 
                   target="_blank" 
                   class="social-link">
@@ -313,7 +313,7 @@ function updateElement(el, rawMarkdown, formatFn) {
               </div>
 
               <div class="link-item">
-                <span>English Doc：</span>
+                <span>English Usage Guide：</span>
                 <a href="https://temporal-lantern-7e8.notion.site/super-agent-party-211b2b2cb6f180c899d1c27a98c4965d" 
                   target="_blank" 
                   class="social-link">
@@ -1067,6 +1067,18 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <i :class="isSending ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane'" aria-hidden="true"></i>
                       </el-button>
                     </el-tooltip>
+                    
+                    <el-tooltip :content="t('logoPage')" placement="top">
+                      <el-button
+                        plain
+                        class="icon-btn party-btn"
+                        style="border-radius: 24px;"
+                        @click="showLogoDialog = true"
+                      >
+                        <span>Super Agent Party</span>
+                      </el-button>
+                    </el-tooltip>
+
                   </div>
 
                   <!-- 1. 附件预览区域 -->

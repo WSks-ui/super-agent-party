@@ -1,115 +1,118 @@
-/* styles.css 完整主题方案 */
+/* styles.css 完整优化方案 */
 :root {
-  /* 过渡动画 */
   --transition-duration: 0.3s;
   --transition-function: cubic-bezier(0.4, 0, 0.2, 1);
-  --progress:0%;
+  --progress: 0%;
 }
-/* 亮色主题默认值 */
+
+/* 亮色主题：艺术纸张风格 (Paper White) */
 [data-theme="light"] {
-  /* 基础颜色 */
-  --bg-color: #ffffff;
-  --text-color: #2c3e50;
-  --border-color: #dcdfe6;
+  /* 基础颜色 - 这种白像高级铜版纸，温润而不发黄 */
+  --bg-color: #f9f9f7; 
+  --text-color: #333330; /* 深炭灰，非纯黑，阅读更舒适 */
+  --border-color: #e2e2df;
   
-  /* Element Plus 核心变量 */
-  --el-color-primary: #1e849b;
-  --el-color-primary-light-3: #469bae;
-  --el-color-primary-light-5: #80becd;
-  --el-color-primary-light-7: #adced5;
-  --el-color-primary-light-9: #d2e7ea;
-  --el-color-primary-rgb: 64, 158, 255 !important;
+  /* Element Plus 核心变量 - 稍微降低主色的侵略性 */
+  --el-color-primary: #2a7a8c; /* 稍作降饱和处理的青石色 */
+  --el-color-primary-light-3: #599ca9;
+  --el-color-primary-light-5: #8bbdc7;
+  --el-color-primary-light-7: #bcdbe1;
+  --el-color-primary-light-9: #e6f0f2;
+  --el-color-primary-rgb: 42, 122, 140 !important;
   
   --el-bg-color: var(--bg-color) !important;
   --el-text-color-primary: var(--text-color) !important;
-  --el-border-color :var(--border-color) !important;
-  --el-border-color-light: var(--border-color) !important;
+  --el-border-color: var(--border-color) !important;
+  --el-border-color-light: #ebebe8 !important;
 
   /* 组件颜色 */
   --el-button-bg-color: var(--el-color-primary) !important;
-  --el-input-bg-color: #f5f7fa !important;
+  --el-input-bg-color: #f2f2ef !important; /* 比背景深一点的纸感灰 */
   --el-menu-bg-color: var(--bg-color) !important;
   --el-table-bg-color: var(--bg-color) !important;
-  --el-tag-bg-color: #ecf5ff !important;
-  --el-bg-color-page: #f0f2f5 !important;
-  --el-tabs-bg-color: #f0f2f5 !important;
+  --el-tag-bg-color: #f0f4f5 !important;
+  --el-bg-color-page: #f2f2ef !important; /* 页面底色 */
+  --el-tabs-bg-color: #f2f2ef !important;
   
-  /* 状态颜色 */
-  --el-color-success: #67c23a !important;
-  --el-color-warning: #e6a23c !important;
-  --el-color-danger: #f56c6c !important;
-  --el-color-info: #909399 !important;
+  /* 状态颜色 - 采用莫兰迪色系的变体，降低饱和度 */
+  --el-color-success: #6b9e78 !important;
+  --el-color-warning: #d4a35c !important;
+  --el-color-danger: #c96868 !important;
+  --el-color-info: #959590 !important;
   
   /* 文字颜色 */
-  --el-text-color-regular: #606266 !important;
-  --el-text-color-secondary: #909399 !important;
+  --el-text-color-regular: #5c5c58 !important;
+  --el-text-color-secondary: #8e8e8a !important;
   
-  /* 阴影 */
-  --el-box-shadow-light: 0 2px 12px rgba(0, 0, 0, 0.1) !important;
+  /* 阴影 - 减弱阴影强度，使用偏暖的灰色投影 */
+  --el-box-shadow-light: 0 4px 12px rgba(80, 80, 70, 0.08) !important;
 
-  /* Input 文字颜色 */
+  /* Input 调整 */
   --el-input-text-color: var(--text-color);
-  /* Placeholder 颜色 */
-  --el-input-placeholder-color: #999;
-  /* Hover 边框 */
+  --el-input-placeholder-color: #b5b5b0;
   --el-input-hover-border-color: var(--el-color-primary-light-3);
-  /* Focus 边框 */
   --el-input-focus-border-color: var(--el-color-primary);
 
-  --code-bg: #f8f8f8;
-  --code-border: #e4e7ed;
+  --code-bg: #f2f2ef;
+  --code-border: #e0e0dc;
   
-  /* 卡片阴影 */
-  --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  --card-shadow: 0 2px 16px 0 rgba(0, 0, 0, 0.05);
 }
-/* 暗色主题 */
+
+/* 暗色主题：黑板/石墨风格 (Chalkboard Black) */
 [data-theme="dark"] {
-  --bg-color: #1a1a1a;
-  --text-color: #e5e7eb;
-  --border-color: #434343;
-  --el-color-primary: #ee7e00;
-  --el-color-primary-light-3: #ec8e23;
-  --el-color-primary-light-5: #eba351;
-  --el-color-primary-light-7: #deb88b;
-  --el-color-primary-light-9: #e7dacb;
-  --el-color-primary-rgb: 22, 104, 220 !important;
+  /* 基础颜色 - 这种黑像深色石墨或磨砂黑板，不带蓝调 */
+  --bg-color: #1c1c1b; 
+  --text-color: #d6d6d0; /* 柔和的米白，像粉笔字 */
+  --border-color: #383835;
+  
+  /* 橙色主色调优化：往琥珀色靠拢，更显稳重 */
+  --el-color-primary: #d97706; 
+  --el-color-primary-light-3: #f59e0b;
+  --el-color-primary-light-5: #fbbf24;
+  --el-color-primary-light-7: #fcd34d;
+  --el-color-primary-light-9: #fef3c7;
+  --el-color-primary-rgb: 217, 119, 6 !important;
 
   --el-bg-color: var(--bg-color) !important;
   --el-text-color-primary: var(--text-color) !important;
   --el-border-color: var(--border-color) !important;
-  --el-border-color-light: var(--border-color) !important;
-  /* 组件颜色 */
-  --el-button-bg-color: #2a2a2a !important;
-  --el-input-bg-color: #2d2d2d !important;
-  --el-menu-bg-color: #1f1f1f !important;
-  --el-table-bg-color: #262626 !important;
-  --el-tag-bg-color: rgba(22, 104, 220, 0.2) !important;
-  --el-bg-color-page: #1f1f1f !important;
-  --el-tabs-bg-color: #1f1f1f !important;
-  /* 状态颜色 */
-  --el-color-success: #85ce61 !important;
-  --el-color-warning: #ebd263 !important;
-  --el-color-danger: #f78989 !important;
-  --el-color-info: #a1a3a8 !important;
-  /* 文字颜色 */
-  --el-text-color-regular: #d0d4db !important;
-  --el-text-color-secondary: #8c8c8c !important;
-  /* 阴影 */
-  --el-box-shadow-light: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+  --el-border-color-light: #2d2d2a !important;
 
-  --el-input-text-color: #e5e7eb;
-  --el-input-placeholder-color: #666;
+  /* 组件颜色 */
+  --el-button-bg-color: #2d2d2a !important;
+  --el-input-bg-color: #262624 !important;
+  --el-menu-bg-color: #1c1c1b !important;
+  --el-table-bg-color: #21211f !important;
+  --el-tag-bg-color: rgba(217, 119, 6, 0.15) !important;
+  --el-bg-color-page: #161615 !important;
+  --el-tabs-bg-color: #161615 !important;
+
+  /* 状态颜色 - 适应暗色的低对比度需求 */
+  --el-color-success: #7ea381 !important;
+  --el-color-warning: #ccac70 !important;
+  --el-color-danger: #cf7676 !important;
+  --el-color-info: #858580 !important;
+
+  /* 文字颜色 */
+  --el-text-color-regular: #b2b2ac !important;
+  --el-text-color-secondary: #7a7a75 !important;
+
+  /* 阴影 - 纯黑环境中通过极细微的亮边替代深阴影 */
+  --el-box-shadow-light: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+
+  --el-input-text-color: #d6d6d0;
+  --el-input-placeholder-color: #5c5c58;
   --el-input-hover-border-color: var(--el-color-primary-light-5);
   --el-input-focus-border-color: var(--el-color-primary-light-7);
   
-  /* 调整暗色输入框禁用状态 */
-  --el-input-disabled-bg-color: #333;
-  --el-input-disabled-border-color: #444;
+  --el-input-disabled-bg-color: #262624;
+  --el-input-disabled-border-color: #333330;
 
-  --code-bg: #4c4c4c;
-  --code-border: #787878;
+  --code-bg: #262624;
+  --code-border: #3d3d3a;
   
-  --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+  --card-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.5);
 }
 
 /* 新增 Ocean Midnight 主题 */
@@ -1457,7 +1460,7 @@ body {
 }
 
 .system .message-content {
-  background: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-3);
   border: 1px solid var(--el-border-color-light);
   color: #ffffff;
   border-radius: 12px;
