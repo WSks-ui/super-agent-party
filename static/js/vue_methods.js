@@ -4891,6 +4891,7 @@ let vue_methods = {
       const build = (dims = 1024) => ({
         id: this.newMemory.id || uuid.v4(),
         name: this.newMemory.name,
+        infer: this.newMemory.infer,
         providerId: this.newMemory.providerId,
         model: this.newMemory.model,
         api_key: this.newMemory.api_key,
@@ -5784,6 +5785,7 @@ handleCreateSlackSeparator(val) {
       this.newMemory = {
         id: null,
         name: '',
+        infer:false,
         providerId: null,
         model: '',
         base_url: '',
@@ -5806,6 +5808,7 @@ handleCreateSlackSeparator(val) {
         this.newMemory = {
           id: null,
           name: src.name || '',
+          infer: src.infer || false,
           providerId: src.providerId || null,
           model: src.model || '',
           base_url: src.base_url || '',
@@ -5880,7 +5883,7 @@ handleCreateSlackSeparator(val) {
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
       this.isAssistantMode = window.innerWidth <= 350 && window.innerHeight <= 820;
-      this.isCapsuleMode = window.innerWidth <= 230 && window.innerHeight <= 100;
+      this.isCapsuleMode = window.innerWidth <= 220 && window.innerHeight <= 100;
       if (this.isMobile) {
         this.MoreButtonDict = this.smallMoreButtonDict;
       }
@@ -10702,7 +10705,7 @@ stopTTSActivities() {
     if (this.isCapsuleMode && !this.isMac) {
       window.electronAPI.windowAction('maximize') // 恢复默认大小
     } else{
-      window.electronAPI.toggleWindowSize(220, 75);
+      window.electronAPI.toggleWindowSize(210, 80);
     }
     this.sidePanelOpen = false;
     this.isCapsuleMode = !this.isCapsuleMode;
@@ -10952,6 +10955,7 @@ stopTTSActivities() {
       // 3. 写入 newMemory 并保存
       Object.assign(this.newMemory, {
         name: json.name ?? '',
+        infer:false,
         providerId: null,
         model: '',
         base_url: '',
