@@ -1460,7 +1460,7 @@ body {
 }
 
 .system .message-content {
-  background: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-3);
   border: 1px solid var(--el-border-color-light);
   color: #ffffff;
   border-radius: 12px;
