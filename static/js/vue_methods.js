@@ -6979,6 +6979,18 @@ handleCreateSlackSeparator(val) {
         }
       }
       
+      // 销毁 VAD
+      if (this.vad) {
+        this.vad.pause(); // 某些库版本是 destroy() 或 pause()
+        this.vad = null;
+      }
+
+      // 【新增】停止手动获取的流，释放麦克风红点
+      if (this.mediaStream) {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+        this.mediaStream = null;
+      }
+
       // 停止录音和VAD（两种模式都需要）
       this.stopRecording();
     },
@@ -6990,8 +7002,21 @@ handleCreateSlackSeparator(val) {
       if (this.asrSettings.engine === 'webSpeech') {
         min_probabilities = 0.7;
       }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true, // 核心：开启回声消除
+          noiseSuppression: true, // 建议开启：降噪
+          autoGainControl: true   // 建议开启：自动增益
+        }
+      });
+      
+      // 保存流引用，以便后续关闭或用于其他用途（如录音）
+      this.mediaStream = stream; 
+
       // 初始化VAD
       this.vad = await vad.MicVAD.new({
+        stream: stream,
         preSpeechPadFrames: 10,
         onSpeechStart: () => {
           this.ASRrunning = true;
