@@ -221,9 +221,8 @@ function updateElement(el, rawMarkdown, formatFn) {
       <el-dialog
         v-model="showLogoDialog"
         :title="t('logoPage')"
-        width="90%">
+        width="90%"> 
         <!-- logo页面 -->
-        <div v-show="activeMenu === 'logo'" class="page logo-container">
           <div class="license-notice">
             <h1>Super Agent Party v0.3.8</h1>
             <h3>开源协议声明 / Open Source License</h3>
@@ -336,7 +335,6 @@ function updateElement(el, rawMarkdown, formatFn) {
               </p>
             </div>
           </div>
-        </div>
       </el-dialog>  
       <!-- 扩展选择对话框 -->
       <el-dialog
@@ -1069,7 +1067,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <i :class="isSending ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane'" aria-hidden="true"></i>
                       </el-button>
                     </el-tooltip>
-
+                    
                     <el-tooltip :content="t('logoPage')" placement="top">
                       <el-button
                         plain
