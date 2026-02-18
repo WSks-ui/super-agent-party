@@ -14929,6 +14929,7 @@ async handleRefreshSkills() {
     // 删除任务
     async handleDeleteTask(taskId) {
         try {
+            this.handleCancelTask(taskId);
             const res = await fetch(`/v1/tasks/${taskId}`, { 
                 method: 'DELETE' 
             });
@@ -14973,4 +14974,44 @@ async handleRefreshSkills() {
     this.showTaskResultDialog = true;
   },
     
+// 打开详情页
+openTaskDetailView(task) {
+    this.viewingTaskDetail = task;
+},
+
+// 关闭详情页回到列表
+closeTaskDetail() {
+    this.viewingTaskDetail = null;
+},
+
+// 修改 fetchTasks 方法，增加同步详情逻辑
+async fetchTasks() {
+    if (!this.hasWorkspacePath || !this.sidePanelOpen || this.activeSideView !== 'tasks') return;
+    
+    try {
+        const res = await fetch(`/v1/tasks/list`);
+        const data = await res.json();
+        if (data.tasks) {
+            this.taskList = data.tasks;
+            
+            // ⭐ 核心逻辑：如果当前正在看某个任务的详情，实时更新它
+            if (this.viewingTaskDetail) {
+                const updatedTask = data.tasks.find(t => t.task_id === this.viewingTaskDetail.task_id);
+                if (updatedTask) {
+                    this.viewingTaskDetail = updatedTask;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to fetch tasks", e);
+    }
+},
+
+// 重置任务中心状态（关闭时调用）
+closeTaskCenter() {
+    this.activeSideView = 'list';
+    this.viewingTaskDetail = null; // 清除详情状态
+    if (this.taskRefreshTimer) clearInterval(this.taskRefreshTimer);
+},
+
 }

@@ -2024,4 +2024,5 @@ main();`,
     showTaskResultDialog: false,
     selectedTaskResult: '',
     selectedTaskTitle: '',
+    viewingTaskDetail: null,
 };
