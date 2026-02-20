@@ -11737,6 +11737,7 @@ clearSegments() {
   
   // 切换扩展
   async switchExtension(extension) {
+    this.activeSideView = 'list'; // 确保回到列表
     this.sidePanelURL = '';
     this.showExtensionsDialog = false; // 关闭对话框
     this.currentExtension = extension;

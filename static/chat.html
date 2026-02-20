@@ -666,24 +666,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </el-button>
                     </el-tooltip>
 
-                    <el-tooltip :content="t('mainModel')" placement="top">
-                      <el-button
-                        v-if="!isCapsuleMode"
-                        plain
-                        circle
-                        class="icon-btn model-btn"
-                        @click="showModelDialog = true"
-                      >
-                        <template #icon>
-                          <img
-                            :src="getVendorLogo(selectedVendor?.vendor || 'unknown')"
-                            class="model-vendor-logo"
-                            draggable="false"
-                          />
-                        </template>
-                      </el-button>
-                    </el-tooltip>
-
                     <el-tooltip :content="t('chatHistory')" placement="top">
                       <el-button
                         v-if="!isCapsuleMode"
@@ -692,17 +674,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         :type="conversations.length === 0 ? 'default' : 'primary'"
                         circle>
                         <i class="fa-solid fa-clock-rotate-left"></i>
-                      </el-button>
-                    </el-tooltip>
-
-                    <el-tooltip :content="t('extension')" placement="top">
-                      <el-button
-                        v-if="!isMobile"
-                        @click="openExtensionsDialog"
-                        class="icon-btn history-btn"
-                        :type="!sidePanelURL ? 'default' : 'primary'"
-                        circle>
-                        <i class="fa-solid fa-puzzle-piece"></i>
                       </el-button>
                     </el-tooltip>
 
@@ -1131,6 +1102,26 @@ function updateElement(el, rawMarkdown, formatFn) {
                       class="input-box-transparent">
                     </el-input>
                     
+                    <div class="input-status-bar" v-if="!isAssistantMode && !isMobile">
+                      
+                      <!-- 模型指示器 -->
+                      <el-tooltip :content="t('clickToSwitchModel')" placement="top" :show-after="500">
+                        <div class="status-pill" v-if="settings?.model !== ''" @click="showModelDialog = true">
+                          <i class="fa-solid fa-microchip"></i>
+                          <span class="pill-text">{{ settings.model }}</span>
+                        </div>
+                      </el-tooltip>
+                      
+                      <!-- 扩展指示器 -->
+                      <el-tooltip :content="t('clickToSwitchExtensions')" placement="top" :show-after="500">
+                        <div class="status-pill" v-if="currentViewName" @click="openExtensionsDialog">
+                          <i class="fa-solid fa-puzzle-piece"></i>
+                          <span class="pill-text">{{ currentViewName }}</span>
+                        </div>
+                      </el-tooltip>
+
+                    </div>
+
                     <!-- 拖拽时的遮罩提示（可选，提升体验） -->
                     <div v-if="isDragging" class="drop-overlay">
                       <el-icon><Upload /></el-icon>

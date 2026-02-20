@@ -9174,3 +9174,212 @@ hr.footnotes-sep {
               0 0 20px rgba(255, 255, 255, 0.08),
               0 0 10px rgba(255, 45, 149, 0.2) !important;
 }
+
+
+/* =========================================
+   输入框底部状态栏 (模型与扩展指示器)
+   ========================================= */
+
+/* 微调输入框自身的底边距，让出空间给状态栏 */
+.input-box-transparent .el-textarea__inner {
+  padding: 8px 16px 6px 16px !important; /* 将底部的 padding 缩小 */
+}
+
+/* 底部状态栏容器 */
+.input-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px 16px; /* 补足底部呼吸空间，与左右对齐 */
+  background: transparent;
+  user-select: none;
+}
+
+/* 状态胶囊按钮 */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: rgba(128, 128, 128, 0.06); /* 极弱的毛玻璃底色 */
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px; /* 胶囊圆角 */
+  font-size: 11px;
+  color: var(--el-text-color);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 180px; /* 限制过长模型名撑破布局 */
+}
+
+/* 胶囊内的图标 */
+.status-pill i {
+  font-size: 12px;
+  opacity: 0.8;
+  transition: transform 0.2s;
+}
+
+/* 胶囊内的文字 (超长截断) */
+.status-pill .pill-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* 悬停时的交互反馈 */
+.status-pill:hover {
+  /* 混入主题主色，适配亮暗模式 */
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
+  color: var(--el-color-primary);
+  transform: translateY(-1px);
+}
+
+.status-pill:hover i {
+  opacity: 1;
+}
+
+/* 点击时的反馈 */
+.status-pill:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* 适配移动端时稍微紧凑一点 */
+@media (max-width: 768px) {
+  .input-status-bar {
+    padding: 0 12px 10px 12px;
+  }
+  .status-pill {
+    max-width: 120px;
+    padding: 4px 8px;
+  }
+}
+
+/* 确保 el-dropdown 不会破坏 flex 布局对齐 */
+.status-pill-dropdown {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 移除 el-dropdown 被点击时默认产生的边框/外发光 */
+.status-pill-dropdown:focus-visible,
+.status-pill-dropdown:focus {
+  outline: none !important;
+}
+
+/* 在多胶囊条同时出现时，允许状态栏内的内容横向滚动而不换行（防过长溢出） */
+.input-status-bar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  /* 隐藏滚动条让视觉更清爽 */
+  scrollbar-width: none; 
+}
+.input-status-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================
+   全局 El-Dropdown 下拉菜单主题适配 (终极卡片化版)
+   ========================================= */
+
+/* 1. 最外层弹出层容器 (Popper) - 核心物理外壳 */
+.el-popper.el-dropdown__popper {
+  /* 卡片底色，使用毛玻璃效果，增加现代感 */
+  background: var(--el-bg-color-overlay, var(--el-bg-color)) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  
+  /* 🌟 核心：更大的圆角 (16px) 和更强的悬浮阴影 */
+  border: 1px solid var(--el-border-color-lighter) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+  
+  padding: 0 !important; 
+  overflow: visible !important;
+}
+
+/* 2. 内部菜单列表 (Menu) */
+.el-dropdown-menu {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  /* 给内部选项留出充裕的呼吸空间，形成 "大圆角包小圆角" 的美感 */
+  padding: 8px !important;
+  border-radius: 16px !important;
+}
+
+/* 3. 单个选项 (Menu Item) */
+.el-dropdown-menu__item {
+  color: var(--el-text-color-primary) !important;
+  /* 内部选项采用 10px 圆角胶囊 */
+  border-radius: 10px !important;
+  margin: 2px 0 !important;
+  padding: 10px 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 选项悬停/聚焦 (Hover) */
+.el-dropdown-menu__item:hover,
+.el-dropdown-menu__item:focus {
+  background-color: color-mix(in srgb, var(--el-color-primary) 12%, transparent) !important;
+  color: var(--el-color-primary) !important;
+  /* 保持原地不动，确保左右留白绝对对称 */
+  transform: none !important; 
+}
+
+/* 被禁用的选项 */
+.el-dropdown-menu__item.is-disabled {
+  color: var(--el-text-color-placeholder) !important;
+  background-color: transparent !important;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 4. 修复指示箭头 (Arrow) - 让箭头颜色跟上卡片的外壳 */
+.el-popper.is-light .el-popper__arrow::before {
+  background: var(--el-bg-color-overlay, var(--el-bg-color)) !important;
+  border-color: var(--el-border-color-lighter) !important;
+}
+
+/* =========================================
+   三个深色主题的深度优化 (纯净物理阴影，无发光)
+   ========================================= */
+
+/* [Dark] 石墨黑主题 */
+[data-theme="dark"] .el-popper.el-dropdown__popper {
+  background: #1e1e1e !important; 
+  border-color: #383835 !important; /* 柔和的深灰边框 */
+  /* 纯黑深邃阴影，无多余光晕 */
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+[data-theme="dark"] .el-popper.is-light .el-popper__arrow::before {
+  background: #1e1e1e !important;
+  border-color: #383835 !important;
+}
+
+/* [Midnight] 午夜海洋主题 */
+[data-theme="midnight"] .el-popper.el-dropdown__popper {
+  background: #1e293b !important; 
+  border-color: #334155 !important; /* 匹配午夜主题的灰蓝边框 */
+  /* 纯黑深邃阴影 */
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+[data-theme="midnight"] .el-popper.is-light .el-popper__arrow::before {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+/* [Neon] 多巴胺/霓虹主题 (仅保留色彩边框，去除外围光晕) */
+[data-theme="neon"] .el-popper.el-dropdown__popper {
+  background: #2d1b5b !important; 
+  border-color: #6a45d1 !important; /* 保留其标志性的紫色物理边框 */
+  /* 纯黑深邃阴影，去除紫粉色发光 */
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+[data-theme="neon"] .el-popper.is-light .el-popper__arrow::before {
+  background: #2d1b5b !important;
+  border-color: #6a45d1 !important;
+}
