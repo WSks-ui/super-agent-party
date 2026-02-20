@@ -8907,3 +8907,246 @@ hr.footnotes-sep {
   color: var(--el-text-color-primary);
   font-size: 14px;
 }
+
+/* =========================================
+   Message Bubble Buttons Optimization (紧凑修复版)
+   ========================================= */
+
+/* 1. 基础样式：去掉背景、边框，清零默认外边距 */
+.message-actions .el-button,
+.tts-controls .el-button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--el-text-color-secondary) !important;
+  
+  /* 🌟 核心修复 1：彻底干掉 Element 默认的相邻按钮 margin-left */
+  margin: 0 !important; 
+  padding: 0 !important;
+  
+  /* 🌟 核心修复 2：将尺寸从 30px 缩小到 26px，更加紧凑精致 */
+  width: 26px !important; 
+  height: 26px !important;
+  font-size: 13px !important; /* 稍微缩小图标字体适配容器 */
+  
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 2. 悬停反馈：淡淡的圆形背景 */
+.message-actions .el-button:hover,
+.tts-controls .el-button:hover {
+  background-color: rgba(128, 128, 128, 0.1) !important;
+  color: var(--el-color-primary) !important; 
+  transform: scale(1.1);
+}
+
+/* 3. 播放状态按钮 (TTS) */
+.tts-controls .el-button--primary,
+.tts-controls .el-button.is-active {
+  color: var(--el-color-primary) !important;
+}
+
+/* 4. 调整间距：确保 Flex 布局生效 */
+.message-actions, .tts-controls {
+  /* 🌟 核心修复 3：强制使用 flex 布局，确保 gap 规则完美接管间距 */
+  display: flex !important; 
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px !important; /* 纯净的 4px 间距，配合 26px 的按钮最完美 */
+  
+  margin-top: 6px !important;
+  opacity: 0.4; 
+  transition: opacity 0.3s ease;
+}
+
+.message:hover .message-actions,
+.message:hover .tts-controls {
+  opacity: 1; 
+}
+
+/* =========================================
+   Sidebar Cards & Task Items
+   ========================================= */
+
+.extension-card, .task-center-card, .default-view-card {
+  border: 1px solid var(--el-border-color-lighter) !important;
+  border-radius: 16px !important; /* 更大的圆角 */
+  background-color: var(--el-bg-color) !important;
+  transition: all 0.3s ease !important;
+  margin-bottom: 12px !important;
+}
+
+.extension-card:hover {
+  border-color: var(--el-color-primary-light-5) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 任务中心里面的列表项 */
+.task-card-item .el-card {
+  border-radius: 12px !important;
+  background-color: var(--el-bg-color) !important;
+}
+
+
+/* =========================================
+   Ultra-Elegant Resizer (Capsule Style)
+   ========================================= */
+
+/* 1. 拖拽条物理热区 - 保持宽度，确保鼠标好抓取，不卡顿 */
+.resizer {
+  width: 16px !important; /* 稍微给宽一点点热区，提升手感 */
+  background: transparent !important; 
+  border: none !important;
+  position: relative;
+}
+
+/* 隐藏原有复古点阵和发光层 */
+.resizer-dots, .resizer::before {
+  display: none !important;
+}
+
+/* 2. 绘制高级“胶囊”拖拽手柄 
+   注意：使用 :not 排除收起状态的按钮，防止样式冲突 */
+.resizer:not(.resizer-collapsed-right):not(.resizer-collapsed-left)::after {
+  content: '';
+  position: absolute;
+  /* 垂直和水平绝对居中 */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  
+  /* --- 核心调整：短一点，粗一丁点 --- */
+  height: 60px;  /* 长度限制在中间区域 */
+  width: 4px;    /* 稍微粗一点，不再是1px的一条线 */
+  
+  /* --- 核心调整：高级圆角 --- */
+  border-radius: 4px; /* 上下全圆角，形成完美的胶囊状 */
+  
+  /* 默认颜色：低调的高级灰，不抢戏 */
+  background-color: var(--el-border-color-darker, rgba(144, 147, 153, 0.4)); 
+  
+  /* 弹性动画过渡 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 3. 悬停和正在拖拽时的交互反馈 */
+.resizer:not(.resizer-collapsed-right):not(.resizer-collapsed-left):hover::after,
+.chat-wrapper.resizing .resizer::after {
+  width: 6px;    /* 微微变粗，增强握持感 */
+  height: 72px;  /* 微微拉长，增加动态张力 */
+  background-color: var(--el-color-primary); /* 亮起主题色 */
+  box-shadow: 0 0 10px rgba(var(--el-color-primary-rgb), 0.5); /* 柔和的发光 */
+}
+
+
+/* -----------------------------------------
+   2. 右侧面板 (Side Panel) - 悬浮大卡片化
+   ----------------------------------------- */
+.side-panel {
+  /* 背景从页面底色改为“组件纯色”，更具实体感 */
+  background-color: var(--el-bg-color) !important; 
+  
+  /* 现代化的圆角 */
+  border-radius: 16px !important; 
+  border: 1px solid var(--el-border-color-lighter) !important;
+  
+  /* 高级悬浮阴影 */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  
+  /* 制造卡片悬浮感：上下右留出间距，左侧贴近拖拽条 */
+  margin: 12px 12px 12px 0 !important;
+  height: calc(100% - 24px) !important; /* 配合 margin 扣除高度 */
+  
+  overflow: hidden; /* 关键：防止内部的网页/列表把圆角刺破 */
+}
+
+/* 适配暗黑模式的卡片质感 */ .side-panel, .side-panel {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 确保右侧面板里的内部容器（如iframe）完美贴合新的大圆角 */
+.side-panel-iframe, 
+.side-panel-scroll {
+  border-radius: 16px !important;
+  background: transparent !important;
+}
+
+/* =========================================
+   Auto-Hiding Scrollbars (Mac-style Immersive)
+   ========================================= */
+
+/* 1. 目标滚动容器：左侧消息列表、右侧面板及内层各类列表 */
+.messages-container,
+.side-panel-scroll,
+.task-content-wrapper,
+.task-detail-content,
+.extensions-list {
+  /* Firefox 方案：默认滑块和轨道都透明 */
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+  /* 增加平滑过渡 */
+  transition: scrollbar-color 0.4s ease;
+}
+
+/* Chrome/Edge/Safari 方案：默认滑块透明 */
+.messages-container::-webkit-scrollbar-thumb,
+.side-panel-scroll::-webkit-scrollbar-thumb,
+.task-content-wrapper::-webkit-scrollbar-thumb,
+.task-detail-content::-webkit-scrollbar-thumb,
+.extensions-list::-webkit-scrollbar-thumb {
+  background-color: transparent !important;
+  border-radius: 6px; /* 更加圆润 */
+}
+
+/* 2. 交互状态：当鼠标悬停 (hover) 或 容器内正在输入/点击 (focus-within) 时，浮现滚动条 */
+.messages-container:hover,
+.messages-container:focus-within,
+.side-panel-scroll:hover,
+.side-panel-scroll:focus-within,
+.task-content-wrapper:hover,
+.task-content-wrapper:focus-within,
+.task-detail-content:hover,
+.task-detail-content:focus-within,
+.extensions-list:hover,
+.extensions-list:focus-within {
+  /* Firefox 唤醒颜色 */
+  scrollbar-color: rgba(144, 147, 153, 0.3) transparent;
+}
+
+/* Chrome/Edge/Safari 唤醒颜色 */
+.messages-container:hover::-webkit-scrollbar-thumb,
+.messages-container:focus-within::-webkit-scrollbar-thumb,
+.side-panel-scroll:hover::-webkit-scrollbar-thumb,
+.side-panel-scroll:focus-within::-webkit-scrollbar-thumb,
+.task-content-wrapper:hover::-webkit-scrollbar-thumb,
+.task-content-wrapper:focus-within::-webkit-scrollbar-thumb,
+.task-detail-content:hover::-webkit-scrollbar-thumb,
+.task-detail-content:focus-within::-webkit-scrollbar-thumb,
+.extensions-list:hover::-webkit-scrollbar-thumb,
+.extensions-list:focus-within::-webkit-scrollbar-thumb {
+  background-color: rgba(144, 147, 153, 0.3) !important;
+}
+
+/* 3. 握持状态：当鼠标精准放在滚动条滑块上时，颜色进一步加深，提示可拖拽 */
+.messages-container::-webkit-scrollbar-thumb:hover,
+.side-panel-scroll::-webkit-scrollbar-thumb:hover,
+.task-content-wrapper::-webkit-scrollbar-thumb:hover,
+.task-detail-content::-webkit-scrollbar-thumb:hover,
+.extensions-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(144, 147, 153, 0.6) !important;
+}
+
+/* --- (可选) 针对右侧 iframe 的隐藏滚动条穿透 --- */
+/* 注意：iframe 内的网页滚动条需要网页自身支持，但在侧边栏套壳时，尽量保证外部干净 */
+.side-panel-iframe {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.side-panel-iframe:hover {
+  scrollbar-color: rgba(144, 147, 153, 0.3) transparent;
+}
