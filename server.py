@@ -1319,6 +1319,23 @@ async def read_todos_local(cwd: str) -> list:
         print(f"Error reading todos: {e}")
         return []
 
+async def read_agents_md(cwd: str) -> str:  # 返回str而不是list
+    """读取本地AGENTS.md文件内容"""
+    agents_md_path = Path(cwd) / "AGENTS.md"
+    
+    if not agents_md_path.exists():
+        return ""
+    
+    try:
+        async with aiofiles.open(agents_md_path, 'r', encoding='utf-8') as f:
+            content = await f.read()
+            return content
+    except FileNotFoundError:
+        # 文件在检查后又被删除的情况
+        return ""
+    except Exception as e:
+        print(f"Error reading AGENTS.md: {e}")
+        return ""
 
 def get_system_context() -> str:
     """
@@ -1452,12 +1469,10 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
     
     if cwd and Path(cwd).exists() and cli_settings.get("enabled", False) and engine in ["ds", "local"]:
         
-        # ====== 新增：本地环境系统提示 ======
         if engine == "local":
             # 在本地环境下，首先注入系统环境信息
             system_context = get_system_context()
             content_append(request.messages, 'system', system_context)
-        # =====================================
         elif engine == "ds":
             # 在 Docker 环境下，注入系统环境信息
             system_context = """【环境信息】操作系统：Linux | Shell：bash
@@ -1538,32 +1553,10 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
         todos = []
         
         try:
-            if engine == "ds":
-                # Docker 环境（已有代码保持不变）
-                abs_path = str(Path(cwd).resolve())
-                path_hash = hashlib.md5(abs_path.encode()).hexdigest()[:12]
-                container_name = f"sandbox-{path_hash}"
-                
-                proc = await asyncio.create_subprocess_exec(
-                    "docker", "exec", container_name, 
-                    "cat", "/workspace/.agent/ai_todos.json",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await proc.communicate()
-                
-                if proc.returncode == 0 and stdout:
-                    try:
-                        todos = json.loads(stdout.decode('utf-8'))
-                    except json.JSONDecodeError:
-                        todos = []
-                        
-            else:  # local 环境
-                todos = await read_todos_local(cwd)
+            todos = await read_todos_local(cwd)
             
             # 处理待办事项（原有逻辑）
             if isinstance(todos, list) and len(todos) > 0:
-                # ... 原有待办事项格式化代码保持不变 ...
                 priority_icons = {"high": "🔴", "medium": "🟡", "low": "🟢"}
                 status_icons = {
                     "pending": "⏳", 
@@ -1609,6 +1602,14 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
             pass
 
         try:
+            agents_md = await read_agents_md(cwd)
+            if agents_md:
+                content_append(request.messages, 'system', " **重要事项**（AGENTS.md）：\n\n"+agents_md+"\n\n")
+        except Exception as e:
+            print(f"[Agent Loader] 跳过AGENTS.md加载: {e}")
+            pass
+
+        try:
             # 无论是在 docker 还是 local，逻辑路径通常是一致的（通过挂载）
             # 如果是 Docker 环境且 backend 无法直接访问 cwd，则需通过 docker exec ls 扫描，
             # 但通常项目路径是共享的。
@@ -1617,14 +1618,17 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
                 content_append(request.messages, 'system', skills_message)
         except Exception as e:
             print(f"[Skill Loader] 扫描技能失败: {e}")
-
+        permission_message = ""
         # 权限模式提示（原有逻辑，但修复了变量名）
         if permissionMode != "plan":
             permission_message = "你当前处于执行模式，你可以自由地使用所有工具，但请注意不要滥用权限！如果有更安全的工具，请不要直接使用bash命令！"
             content_append(request.messages, 'system', permission_message)
         elif permissionMode == "cowork":
-            permission_message = "你当前处于协作阶段，你可以将复杂任务拆解成多个简单子任务，交给子智能体执行，这些子智能体将在后台异步执行这些任务，当你创建任务后，请不要查询这些任务的结果，因为它们可能还在执行中，请当用户询问时再查询任务进度即可!当你需要调用工具时，尽可能的使用子任务来执行，这样可以避免直接调用工具阻塞对话！"
-            content_append(request.messages, 'system', permission_message)
+            if not request.is_sub_agent:
+                permission_message += "你当前处于协作模式，对于需要**调用工具**完成的**任何事情**，你都倾向于将任何任务改写成一个或者多个简单子任务，**交给create_subtask工具执行**，这些子智能体将在后台异步执行这些任务，当你创建任务后，**请不要查询这些任务的结果**，因为它们可能还在执行中，请当用户询问时再查询任务进度即可!当你需要调用工具时，尽可能的使用子任务来执行，这样可以避免直接调用工具阻塞对话！"
+                content_append(request.messages, 'system', permission_message)
+            else:
+                pass
         else:
             permission_message = "你当前处于计划模式，请尽可能只使用只读工具了解当前项目，使用自然语言描述你的需求和计划，并等待用户确认后再执行！"
             content_append(request.messages, 'system', permission_message)
@@ -1669,7 +1673,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
         # 不是 memory/ 开头的（如普通模型名或用户自定义名），直接返回
         return raw_model
 
-    if settings["isGroupMode"]:
+    if settings["isGroupMode"] and not request.is_app_bot and not request.is_sub_agent:
         selectedGroupAgents = settings['selectedGroupAgents']
         if selectedGroupAgents:
             userName = "user"
@@ -1685,7 +1689,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
 
     newttsList = []
     Narrator_label = "Narrator"
-    if settings['ttsSettings']['newtts'] and settings['ttsSettings']['enabled'] and settings['memorySettings']['is_memory'] and not request.is_app_bot:
+    if settings['ttsSettings']['newtts'] and settings['ttsSettings']['enabled'] and settings['memorySettings']['is_memory'] and not request.is_app_bot  and not request.is_sub_agent:
         # 遍历settings['ttsSettings']['newtts']，获取所有包含enabled: true的key
         for key in settings['ttsSettings']['newtts']:
             if settings['ttsSettings']['newtts'][key]['enabled']:
@@ -1727,7 +1731,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
 
 注意！你最好只使用你正在扮演的角色音色和旁白音色，不要使用其他角色音色，除非你明确知道你在做什么！\n\n"""
             content_prepend(request.messages, 'system', newtts_messages)
-    if settings['vision']['desktopVision'] and not request.is_app_bot:
+    if settings['vision']['desktopVision'] and not request.is_app_bot  and not request.is_sub_agent:
         desktop_message = "\n\n用户与你对话时，如果发了图片给你，有可能是给你发当前的桌面截图。\n\n"
         content_append(request.messages, 'system', desktop_message)
     if settings['tools']['time']['enabled'] and settings['tools']['time']['triggerMode'] == 'beforeThinking':
@@ -1751,10 +1755,10 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
     if settings['text2imgSettings']['enabled']:
         text2img_messages = "\n\n当你使用画图工具后，必须将图片的URL放在markdown的图片标签中，例如：\n\n<silence>![图片名](图片URL)</silence>\n\n，图片markdown必须另起并且独占一行！请主动发给用户，工具返回的结果，用户看不到！<silence>和</silence>是控制TTS的静音标签，表示这个图片部分不会进入语音合成\n\n你必须在回复中正确使用 <silence> 标签来包裹图片的 Markdown 语法\n\n注意！！！<silence>和</silence>与图片的 Markdown 语法之间不能有空格和回车，会导致解析失败！\n\n"
         content_append(request.messages, 'system', text2img_messages)
-    if settings['VRMConfig']['enabledExpressions'] and not request.is_app_bot:
+    if settings['VRMConfig']['enabledExpressions'] and not request.is_app_bot and not request.is_sub_agent:
         Expression_messages = "\n\n你可以使用以下表情：<happy> <angry> <sad> <neutral> <surprised> <relaxed>\n\n你可以在句子开头插入表情符号以驱动人物的当前表情，注意！你需要将表情符号放到句子的开头（如果有音色标签，就放到音色标签之后即可），才能在说这句话的时候同步做表情，例如：<angry>我真的生气了。<surprised>哇！<happy>我好开心。\n\n一定要把表情符号跟要做表情的句子放在同一行，如果表情符号和要做表情的句子中间有换行符，表情也将不会生效，例如：\n\n<happy>\n我好开心。\n\n此时，表情符号将不会生效。"
         content_append(request.messages, 'system', Expression_messages)
-    if settings['VRMConfig']['enabledMotions'] and not request.is_app_bot:
+    if settings['VRMConfig']['enabledMotions'] and not request.is_app_bot and not request.is_sub_agent:
         # 1. 合并动作列表
         motions = settings['VRMConfig']['defaultMotions'] + settings['VRMConfig']['userMotions']
         # 2. 给每个动作加上 <>
@@ -1771,7 +1775,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
         )
 
         content_append(request.messages, 'system', Motion_messages)
-    if settings['tools']['a2ui']['enabled'] and not request.is_app_bot:
+    if settings['tools']['a2ui']['enabled'] and not request.is_app_bot and not request.is_sub_agent:
         A2UI_messages = """
 除了使用自然语言回答用户问题外，你还拥有一个特殊能力：**渲染 A2UI 界面**。
 
@@ -2156,7 +2160,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
 
     m0 = None
     memoryId = None
-    if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != "":
+    if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != ""  and not request.is_sub_agent:
         memoryId = settings["memorySettings"]["selectedMemory"]
         cur_memory = None
         for memory in settings["memories"]:
@@ -2438,7 +2442,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
             content_append(request.messages, 'system', fileLinks_message)
             source_prompt += fileLinks_message
         user_prompt = request.messages[-1]['content']
-        if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != "":
+        if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != ""  and not request.is_sub_agent:
             if settings["memorySettings"]["userName"]:
                 print("添加用户名：\n\n" + settings["memorySettings"]["userName"] + "\n\n用户名结束\n\n")
                 content_append(request.messages, 'system', "与你交流的用户名为：\n\n" + settings["memorySettings"]["userName"] + "\n\n")
@@ -2504,7 +2508,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                 # 替换cur_memory["systemPrompt"]中的{{char}}为cur_memory["name"]
                 settings["memorySettings"]["genericSystemPrompt"] = settings["memorySettings"]["genericSystemPrompt"].replace("{{char}}", cur_memory["name"])
                 content_append(request.messages, 'system', "\n\n" + settings["memorySettings"]["genericSystemPrompt"] + "\n\n")
-            if m0:
+            if m0 and not request.is_sub_agent:
                 memoryLimit = settings["memorySettings"]["memoryLimit"]
                 try:
                     # 【核心修改】：使用 asyncio.to_thread 将同步的 search 方法放入线程池运行
@@ -3797,7 +3801,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                                 }
                             )
                 yield "data: [DONE]\n\n"
-                if m0:
+                if m0 and not request.is_sub_agent:
                     messages=f"用户说：{user_prompt}\n\n---\n\n你说：{full_content}"
                     executor = ThreadPoolExecutor()
                     infer = cur_memory.get('infer') or False
