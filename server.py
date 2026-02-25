@@ -1329,7 +1329,7 @@ async def read_todos_local(cwd: str) -> list:
 
 async def read_agents_md(cwd: str) -> str:  # 返回str而不是list
     """读取本地AGENTS.md文件内容"""
-    agents_md_path = Path(cwd) / "AGENTS.md"
+    agents_md_path = Path(cwd) / ".agent" / "AGENTS.md"
     
     if not agents_md_path.exists():
         return ""
@@ -1612,7 +1612,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
         try:
             agents_md = await read_agents_md(cwd)
             if agents_md:
-                content_append(request.messages, 'system', " **重要事项**（AGENTS.md）：\n\n"+agents_md+"\n\n")
+                content_append(request.messages, 'system', " **重要事项**（.agent/AGENTS.md）：\n\n"+agents_md+"\n\n")
         except Exception as e:
             print(f"[Agent Loader] 跳过AGENTS.md加载: {e}")
             pass
