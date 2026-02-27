@@ -2221,6 +2221,9 @@ let vue_methods = {
                                     uiTitle = `${displayName}${this.t('tool_result')}`;
                                 } else if (tool.type === 'error') {
                                     uiTitle = tool.title || 'Error'; 
+                                }else {
+                                 
+                                    uiTitle = tool.title || ''; 
                                 }
 
                                 let html = `\n<div class="${className}">`;
