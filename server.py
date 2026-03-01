@@ -1217,8 +1217,8 @@ class ChatRequest(BaseModel):
     model: str = None
     tools: dict = None
     stream: bool = False
-    temperature: Optional[float] = None   # 可空
-    max_tokens: Optional[int] = None      # 可空
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
     top_p: float = 1
     fileLinks: List[str] = None
     enable_thinking: bool = False
@@ -2861,21 +2861,49 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                 if settings['tools']['deepsearch']['enabled'] or enable_deep_research: 
                     deepsearch_messages = copy.deepcopy(request.messages)
                     content_append(deepsearch_messages, 'user',  "\n\n将用户提出的问题或给出的当前任务拆分成多个步骤，每一个步骤用一句简短的话概括即可，无需回答或执行这些内容，直接返回总结即可，但不能省略问题或任务的细节。如果用户输入的只是闲聊或者不包含任务和问题，直接把用户输入重复输出一遍即可。如果是非常简单的问题，也可以只给出一个步骤即可。一般情况下都是需要拆分成多个步骤的。")
+                    
+                    # 1. 开启 stream=True 进行流式请求
                     response = await client.chat.completions.create(
                         model=model,
                         messages=deepsearch_messages,
                         temperature=0.5,
+                        stream=True,  # 新增
                         extra_body = extra_params, # 其他参数
                     )
-                    user_prompt = response.choices[0].message.content
-                    deepsearch_chunk = {
-                        "choices": [{
-                            "delta": {
-                                "tool_content": {"title": "deep_research", "content": user_prompt, "type": "call"},
+                    
+                    user_prompt = ""
+                    import uuid
+                    # 生成一个唯一的 ID，用于让前端锁定同一个 UI 块进行内容更新
+                    deepsearch_id = f"ds_{uuid.uuid4().hex[:8]}"
+                    
+                    # 2. 遍历流式响应并实时推给前端
+                    async for chunk in response:
+                        if not chunk.choices:
+                            continue
+                        
+                        # 兼容不同版本的 openai 响应对象
+                        chunk_dict = chunk.model_dump() if hasattr(chunk, 'model_dump') else chunk
+                        delta = chunk_dict["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        
+                        if content:
+                            user_prompt += content
+                            
+                            # 3. 借用前端原有的 tool_progress 渲染机制
+                            # 前端会自动创建类似 "调用deep_research工具" 的动态刷新框
+                            progress_chunk = {
+                                "choices": [{
+                                    "delta": {
+                                        "tool_progress": {
+                                            "name": "deep_research",
+                                            "arguments": user_prompt, # 传入不断累加的内容
+                                            "tool_call_id": deepsearch_id
+                                        }
+                                    }
+                                }]
                             }
-                        }]
-                    }
-                    yield f"data: {json.dumps(deepsearch_chunk)}\n\n"
+                            yield f"data: {json.dumps(progress_chunk)}\n\n"
+                    
                     content_append(request.messages, 'user',  f"\n\n如果用户没有提出问题或者任务，直接闲聊即可，如果用户提出了问题或者任务，任务描述不清晰或者你需要进一步了解用户的真实需求，你可以暂时不完成任务，而是分析需要让用户进一步明确哪些需求。")
                 # 如果启用推理模型
                 if settings['reasoner']['enabled'] or enable_thinking:
@@ -3010,7 +3038,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                     response = await client.chat.completions.create(
                         model=model,
                         messages=msg,  # 添加图片信息到消息
-                        temperature=request.temperature,
+                        temperature=request.temperature or settings['temperature'],
                         tools=tools,
                         stream=True,
                         top_p=request.top_p or settings['top_p'],
@@ -3021,7 +3049,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                     response = await client.chat.completions.create(
                         model=model,
                         messages=msg,  # 添加图片信息到消息
-                        temperature=request.temperature,
+                        temperature=request.temperature or settings['temperature'],
                         stream=True,
                         top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
@@ -3563,7 +3591,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                         response = await client.chat.completions.create(
                             model=model,
                             messages=msg,  # 添加图片信息到消息
-                            temperature=request.temperature,
+                            temperature=request.temperature or settings['temperature'],
                             tools=tools,
                             stream=True,
                             top_p=request.top_p or settings['top_p'],
@@ -3574,7 +3602,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                         response = await client.chat.completions.create(
                             model=model,
                             messages=msg,  # 添加图片信息到消息
-                            temperature=request.temperature,
+                            temperature=request.temperature or settings['temperature'],
                             stream=True,
                             top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
@@ -4463,7 +4491,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             response = await client.chat.completions.create(
                 model=model,
                 messages=msg,  # 添加图片信息到消息
-                temperature=request.temperature,
+                temperature=request.temperature or settings['temperature'],
                 tools=tools,
                 stream=False,
                 top_p=request.top_p or settings['top_p'],
@@ -4474,7 +4502,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             response = await client.chat.completions.create(
                 model=model,
                 messages=msg,  # 添加图片信息到消息
-                temperature=request.temperature,
+                temperature=request.temperature or settings['temperature'],
                 stream=False,
                 top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
@@ -4689,7 +4717,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 response = await client.chat.completions.create(
                     model=model,
                     messages=msg,  # 添加图片信息到消息
-                    temperature=request.temperature,
+                    temperature=request.temperature or settings['temperature'],
                     tools=tools,
                     stream=False,
                     top_p=request.top_p or settings['top_p'],
@@ -4700,7 +4728,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 response = await client.chat.completions.create(
                     model=model,
                     messages=msg,  # 添加图片信息到消息
-                    temperature=request.temperature,
+                    temperature=request.temperature or settings['temperature'],
                     stream=False,
                     top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
@@ -5384,7 +5412,7 @@ async def simple_chat_endpoint(request: ChatRequest):
         model=current_settings['model'],
         messages=request.messages,
         stream=request.stream,
-        temperature=request.temperature,
+        temperature=request.temperature or settings['temperature'],
     )
 
     # --------------- 非流式：一次性返回 JSON ---------------
