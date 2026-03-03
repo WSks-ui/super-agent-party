@@ -7809,30 +7809,77 @@ async def stop_HA():
 
 @app.post("/start_ChromeMCP")
 async def start_ChromeMCP(request: Request):
-
     data = await request.json()
+    chromeMCPSettings = data.get('data', {})
 
-    chromeMCPSettings = data['data']
-
+    # 1. 确定包名
     if chromeMCPSettings.get('mcpName', 'browser-mcp') == 'browser-mcp':
-        Chrome_config = {
-            "type": "stdio",
-            "command": "npx",
-            "args": ["@browsermcp/mcp@latest"]
-        }
+        target_package = "@browsermcp/mcp@latest"
     else:
-        Chrome_config = {
-            "type": "stdio",
-            "command": "npx",
-            "args": ["@playwright/mcp@latest"]
-        }    
+        target_package = "@playwright/mcp@latest"
 
+    # 2. 准备基础变量
+    command = ""
+    args = []
+    
+    # 3. 准备环境变量 (这是解决权限问题的关键！)
+    env = os.environ.copy()
+
+    # ★关键设置 A: 指定 Playwright 浏览器下载位置到用户可写目录
+    # 避免它尝试写入系统目录或请求 sudo 权限
+    # 获取当前应用运行目录下的 'browsers' 文件夹
+    browser_storage = os.path.join(os.getcwd(), "browsers")
+    if not os.path.exists(browser_storage):
+        os.makedirs(browser_storage, exist_ok=True)
+    
+    env["PLAYWRIGHT_BROWSERS_PATH"] = browser_storage
+    
+    # ★关键设置 B: 告诉 npx 不要问 "Do you want to install..."
+    # 虽然 args 里加了 -y，但设置这个环境变量是双重保险
+    env["npm_config_yes"] = "true"
+
+    # 4. 命令探测逻辑
+    system_npx = shutil.which("npx")
+
+    if system_npx:
+        # --- 方案 A: 系统原生 npx (Docker 或 本地开发) ---
+        print(f"Using system npx: {system_npx}")
+        command = system_npx
+        # 加上 -y 自动确认安装包
+        args = ["-y", target_package] 
+    
+    else:
+        # --- 方案 B: Electron 内部环境 ---
+        electron_node = os.environ.get("ELECTRON_NODE_EXEC")
+        electron_npm = os.environ.get("ELECTRON_NPM_CLI")
+        
+        if electron_node and electron_npm:
+            print(f"System npx not found. Falling back to Electron Node.")
+            command = electron_node
+            # 构造: electron node npm-cli.js exec --yes -- @package
+            # --yes 是 npm exec 的参数，表示自动安装缺失的包
+            args = [electron_npm, "exec", "--yes", "--", target_package]
+            
+            # 必须设置，否则 Electron 会弹窗
+            env["ELECTRON_RUN_AS_NODE"] = "1"
+        else:
+            return JSONResponse(
+                status_code=500, 
+                content={"error": "Node.js runtime not found."}
+            )
+
+    # 5. 组装配置
+    Chrome_config = {
+        "command": command,
+        "args": args,
+        "env": env
+    }
+
+    # ... (后续连接逻辑保持不变) ...
     global ChromeMCP_client
     if ChromeMCP_client is not None:
-        # 已初始化过
         return JSONResponse({"status": "ready", "enabled": True})
 
-    # 用来通知“连接失败”的事件
     conn_failed_event = asyncio.Event()
     failure_reason = None
 
@@ -7843,23 +7890,27 @@ async def start_ChromeMCP(request: Request):
 
     try:
         ChromeMCP_client = McpClient()
-        await ChromeMCP_client.initialize("ChromeMCP", Chrome_config, on_failure_callback=on_failure)
-
-        # 等一小段时间验证连接确实活了
+        await ChromeMCP_client.initialize(
+            "ChromeMCP", 
+            Chrome_config, 
+            on_failure_callback=on_failure
+        )
+        
+        # ... (等待连接逻辑) ...
         try:
-            # 5 秒内如果事件被 set，说明连接失败
             await asyncio.wait_for(conn_failed_event.wait(), timeout=5.0)
-            # 走到这里说明失败了
             raise RuntimeError(f"ChromeMCP client connection failed: {failure_reason}")
         except asyncio.TimeoutError:
-            # 2 秒无事发生，认为连接成功
             pass
 
         return JSONResponse({"status": "ready", "enabled": True})
+
     except Exception as e:
         ChromeMCP_client = None
+        print(f"Start ChromeMCP Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# 停止接口保持不变
 @app.get("/stop_ChromeMCP")
 async def stop_ChromeMCP():
     global ChromeMCP_client
@@ -7878,7 +7929,6 @@ async def stop_ChromeMCP():
             status_code=500,
             content={"error": str(e)}
         )
-
 
 @app.post("/start_sql")
 async def start_sql(request: Request):
