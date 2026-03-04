@@ -12939,16 +12939,58 @@ function updateElement(el, rawMarkdown, formatFn) {
                                   @change="autoSaveSettings"
                                 />
                               </el-form-item> 
-                                <el-form-item :label="t('danmakuWakeWord')">
-                                  <el-input
-                                    v-model="liveConfig.wakeWord"
-                                    :placeholder="t('botWakeWordPlaceholder')"
-                                    class="full-width-input"
-                                    @change="autoSaveSettings"
-                                    type="textarea" 
-                                    :rows="3"
-                                  />
-                                </el-form-item>
+                              <el-form-item :label="t('danmakuWakeWord')">
+                                <el-input
+                                  v-model="liveConfig.wakeWord"
+                                  :placeholder="t('botWakeWordPlaceholder')"
+                                  class="full-width-input"
+                                  @change="autoSaveSettings"
+                                  type="textarea" 
+                                  :rows="3"
+                                />
+                              </el-form-item>
+
+                              <el-alert
+                                type="info"
+                                :closable="false"
+                                class="mb-2"
+                              >
+                                {{ t('vrmAPIInstructions') }}
+                              </el-alert>
+                              <!-- API端点 -->
+                              <el-form-item :label="t('apiEndpoint')" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/vrm.html'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button
+                                      @click="copyVrmEndpoint"
+                                      class="copy-btn"
+                                    >
+                                    <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
+                              <!-- API端点 -->
+                              <el-form-item :label="t('360apiEndpoint')" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/vrm.html?mode=render'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button
+                                      @click="copyVrmEndpoint"
+                                      class="copy-btn"
+                                    >
+                                    <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
                             </div>
                           </div>
                         </el-form>
