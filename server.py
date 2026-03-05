@@ -8,7 +8,7 @@ import os
 import argparse
 import socket
 import errno
-
+os.environ["MEM0_TELEMETRY"] = "False"
 parser = argparse.ArgumentParser(description="Run the ASGI application server.")
 parser.add_argument("--host", default="127.0.0.1")
 parser.add_argument("--port", type=int, default=3456)

@@ -1416,6 +1416,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                               <el-dropdown-item @click="ccSettings.permissionMode='default'; autoSaveSettings()">{{ t('defaultPermissionMode') }}</el-dropdown-item>
                               <el-dropdown-item @click="ccSettings.permissionMode='acceptEdits'; autoSaveSettings()">{{ t('acceptEdits') }}</el-dropdown-item>
                               <el-dropdown-item @click="ccSettings.permissionMode='bypassPermissions'; autoSaveSettings()">{{ t('danger')+t('bypassPermissions') }}</el-dropdown-item>
+                              <el-dropdown-item @click="ccSettings.permissionMode='cowork'; autoSaveSettings()">{{ t('danger')+t('coworkPermissionMode') }}</el-dropdown-item>
                             </template>
                             <!-- Qwen Code (QC) 选项 -->
                             <template v-else-if="CLISettings.engine === 'qc'">
@@ -1423,6 +1424,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                               <el-dropdown-item @click="qcSettings.permissionMode='default'; autoSaveSettings()">{{ t('defaultPermissionMode') }}</el-dropdown-item>
                               <el-dropdown-item @click="qcSettings.permissionMode='auto-edit'; autoSaveSettings()">{{ t('acceptEdits') }}</el-dropdown-item>
                               <el-dropdown-item @click="qcSettings.permissionMode='yolo'; autoSaveSettings()">{{ t('danger')+t('bypassPermissions') }}</el-dropdown-item>
+                              <el-dropdown-item @click="qcSettings.permissionMode='cowork'; autoSaveSettings()">{{ t('danger')+t('coworkPermissionMode') }}</el-dropdown-item>
                             </template>
                           </el-dropdown-menu>
                         </template>
@@ -4952,7 +4954,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           v-model="settings.temperature"
                           :min="0"
                           :max="1"
-                          :step="0.1"
+                          :step="0.01"
                           show-input
                           @input="autoSaveSettings"
                         />
@@ -4962,7 +4964,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           v-model="settings.top_p"
                           :min="0"
                           :max="1"
-                          :step="0.1"
+                          :step="0.01"
                           show-input
                           @input="autoSaveSettings"
                         />
@@ -7720,6 +7722,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                             <el-option :label="t('defaultPermissionMode')" value="default" ></el-option>
                             <el-option :label="t('acceptEdits')" value="acceptEdits" ></el-option>
                             <el-option :label="t('danger')+t('bypassPermissions')" value="bypassPermissions" ></el-option>
+                            <el-option :label="t('danger')+t('coworkPermissionMode')" value="cowork" ></el-option>
                           </el-select>
                         </el-form-item>
                         <el-form-item required :label="t('enabledCCconfig')" class="form-item-align" label-position="left">
@@ -7812,6 +7815,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                             <el-option :label="t('defaultPermissionMode')" value="default" ></el-option>
                             <el-option :label="t('acceptEdits')" value="auto-edit" ></el-option>
                             <el-option :label="t('danger')+t('bypassPermissions')" value="yolo" ></el-option>
+                            <el-option :label="t('danger')+t('coworkPermissionMode')" value="cowork" ></el-option>
                           </el-select>
                         </el-form-item>
                         <el-form-item required :label="t('enabledCCconfig')" class="form-item-align" label-position="left">
@@ -12935,16 +12939,58 @@ function updateElement(el, rawMarkdown, formatFn) {
                                   @change="autoSaveSettings"
                                 />
                               </el-form-item> 
-                                <el-form-item :label="t('danmakuWakeWord')">
-                                  <el-input
-                                    v-model="liveConfig.wakeWord"
-                                    :placeholder="t('botWakeWordPlaceholder')"
-                                    class="full-width-input"
-                                    @change="autoSaveSettings"
-                                    type="textarea" 
-                                    :rows="3"
-                                  />
-                                </el-form-item>
+                              <el-form-item :label="t('danmakuWakeWord')">
+                                <el-input
+                                  v-model="liveConfig.wakeWord"
+                                  :placeholder="t('botWakeWordPlaceholder')"
+                                  class="full-width-input"
+                                  @change="autoSaveSettings"
+                                  type="textarea" 
+                                  :rows="3"
+                                />
+                              </el-form-item>
+
+                              <el-alert
+                                type="info"
+                                :closable="false"
+                                class="mb-2"
+                              >
+                                {{ t('vrmAPIInstructions') }}
+                              </el-alert>
+                              <!-- API端点 -->
+                              <el-form-item :label="t('apiEndpoint')" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/vrm.html'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button
+                                      @click="copyVrmEndpoint"
+                                      class="copy-btn"
+                                    >
+                                    <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
+                              <!-- API端点 -->
+                              <el-form-item :label="t('360apiEndpoint')" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/vrm.html?mode=render'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button
+                                      @click="copyVrmEndpoint"
+                                      class="copy-btn"
+                                    >
+                                    <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
                             </div>
                           </div>
                         </el-form>
@@ -13926,6 +13972,23 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-form-item :label="t('apiEndpoint')" class="form-item-align" label-position="top">
                         <el-input
                           :value="partyURL+'/vrm.html'"
+                          readonly
+                          class="full-width-input"
+                        >
+                          <template #append>
+                            <el-button
+                              @click="copyVrmEndpoint"
+                              class="copy-btn"
+                            >
+                            <i class="fa-solid fa-copy"></i>
+                            </el-button>
+                          </template>
+                        </el-input>
+                      </el-form-item>
+                      <!-- API端点 -->
+                      <el-form-item :label="t('360apiEndpoint')" class="form-item-align" label-position="top">
+                        <el-input
+                          :value="partyURL+'/vrm.html?mode=render'"
                           readonly
                           class="full-width-input"
                         >
