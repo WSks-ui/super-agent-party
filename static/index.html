@@ -7498,7 +7498,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           {{ t('interpreter') }}
                         </span>
                       </div>
-                      <el-switch v-model="codeSettings.enabled" @click.stop @change="autoSaveSettings"/>
+                      <el-switch v-model="codeSettings.enabled" @click.stop @change="handleInterpreterToggle"/>
                     </div>
                     <div class="tool-content">
                       <el-form-item :label="t('codeEngine')" class="form-item-align">
@@ -7595,7 +7595,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                             {{ t('CLItool') }}
                           </span>
                         </div>
-                        <el-switch v-model="CLISettings.enabled" @click.stop @change="autoSaveSettings"/>
+                        <el-switch v-model="CLISettings.enabled" @click.stop @change="handleEnableToggle"/>
                       </div>
                       <div class="tool-content">
                         <el-form-item :label="t('CLIEngine')" class="form-item-align">
@@ -7610,7 +7610,20 @@ function updateElement(el, rawMarkdown, formatFn) {
                             <el-option label="Qwen Code" value="qc" ></el-option>
                           </el-select>
                         </el-form-item>
+
+                        <!-- 工作空间选择 -->
+                        <el-form-item required :label="t('workspace')" class="form-item-align">
+                          <el-input v-model="CLISettings.cc_path" @input="autoSaveSettings" class="full-width-input">
+                            <template #append>
+                              <el-button @click="browseDirectory">
+                                <i class="fa-solid fa-folder"></i>
+                              </el-button>
+                            </template>
+                          </el-input>
+                        </el-form-item>
+
                       </div>
+
                     </div>
 
                     <!-- 本地环境配置 -->
@@ -7624,16 +7637,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </div>
                       <div class="tool-content">
-                        <!-- 工作空间选择 -->
-                        <el-form-item required :label="t('workspace')" class="form-item-align">
-                          <el-input v-model="CLISettings.cc_path" @input="autoSaveSettings" class="full-width-input">
-                            <template #append>
-                              <el-button @click="browseDirectory">
-                                <i class="fa-solid fa-folder"></i>
-                              </el-button>
-                            </template>
-                          </el-input>
-                        </el-form-item>
 
                         <!-- 权限模式选择 -->
                         <el-form-item :label="t('permissionMode')" class="form-item-align">
@@ -7680,16 +7683,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </div>
                       <div class="tool-content">
-                        <!-- 工作空间选择 -->
-                        <el-form-item required :label="t('workspace')" class="form-item-align">
-                          <el-input v-model="CLISettings.cc_path" @input="autoSaveSettings" class="full-width-input">
-                            <template #append>
-                              <el-button @click="browseDirectory">
-                                <i class="fa-solid fa-folder"></i>
-                              </el-button>
-                            </template>
-                          </el-input>
-                        </el-form-item>
 
                         <!-- 权限模式选择 -->
                         <el-form-item :label="t('permissionMode')" class="form-item-align">
@@ -7737,19 +7730,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </div>
                       <div class="tool-content">
-                        <el-form-item required :label="t('workspace')" class="form-item-align">
-                          <el-input
-                            v-model="CLISettings.cc_path"
-                            @input="autoSaveSettings"
-                            class="full-width-input"
-                          >
-                            <template #append>
-                              <el-button @click="browseDirectory">
-                                  <i class="fa-solid fa-folder"></i>
-                              </el-button>
-                            </template>
-                          </el-input>
-                        </el-form-item>
                         <el-form-item :label="t('permissionMode')" class="form-item-align">
                           <el-select
                             v-model="ccSettings.permissionMode"
@@ -7830,19 +7810,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </div>
                       <div class="tool-content">
-                        <el-form-item required :label="t('workspace')" class="form-item-align">
-                          <el-input
-                            v-model="CLISettings.cc_path"
-                            @input="autoSaveSettings"
-                            class="full-width-input"
-                          >
-                            <template #append>
-                              <el-button @click="browseDirectory">
-                                  <i class="fa-solid fa-folder"></i>
-                              </el-button>
-                            </template>
-                          </el-input>
-                        </el-form-item>
                         <el-form-item :label="t('permissionMode')" class="form-item-align">
                           <el-select
                             v-model="qcSettings.permissionMode"
@@ -8136,7 +8103,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           {{ t('webSearch') }}
                         </span>
                       </div>
-                      <el-switch v-model="webSearchSettings.enabled" @click.stop @change="autoSaveSettings"/>
+                      <el-switch v-model="webSearchSettings.enabled" @click.stop @change="handleWebSearchToggle"/>
                     </div>
                     <div class="tool-content">
                       <el-form-item :label="t('searchEngine')" class="form-item-align">
