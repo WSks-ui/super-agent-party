@@ -9402,9 +9402,51 @@ handleCreateSlackSeparator(val) {
     this.autoSaveSettings();
   },
 
-  async changeSqlEnabled(){
-    if (this.sqlSettings.enabled){
-      const response = await fetch('/start_sql',{
+  async changeSqlEnabled() {
+    if (this.sqlSettings.enabled) {
+      
+      // ==========================================
+      // 1. 启动前置校验 (新增逻辑)
+      // ==========================================
+      const settings = this.sqlSettings;
+      let errorMsg = '';
+
+      if (settings.engine === 'sqlite') {
+        // SQLite 只需要校验 dbpath
+        if (!settings.dbpath?.trim()) {
+          errorMsg = this.t('pleaseConfigSqliteDbpath');
+        }
+      } else {
+        // 其他数据库校验 host, port, user, password, dbname
+        if (!settings.host?.trim()) {
+          errorMsg = this.t('pleaseConfigSqlHost');
+        } else if (settings.port === undefined || settings.port === null || settings.port === '') {
+          errorMsg = this.t('pleaseConfigSqlPort');
+        } else if (!settings.user?.trim()) {
+          errorMsg = this.t('pleaseConfigSqlUser');
+        } else if (!settings.password?.trim()) {
+          errorMsg = this.t('pleaseConfigSqlPassword');
+        } else if (!settings.dbname?.trim()) {
+          errorMsg = this.t('pleaseConfigSqlDbname');
+        }
+      }
+
+      // 校验失败：弹窗报错，重置开关并阻断执行
+      if (errorMsg) {
+        const errorTitle = this.t ? this.t('configIncomplete') : 'Configuration Incomplete';
+        showNotification(errorMsg, 'error', errorTitle);
+
+        this.$nextTick(() => {
+          this.sqlSettings.enabled = false;
+        });
+        
+        return; // ⚠️ 必须 return，防止继续执行下方的 fetch 请求
+      }
+
+      // ==========================================
+      // 2. 原有的启动逻辑 (校验通过后执行)
+      // ==========================================
+      const response = await fetch('/start_sql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -9413,32 +9455,41 @@ handleCreateSlackSeparator(val) {
           data: this.sqlSettings
         })
       });
-      if (response.ok){
+      if (response.ok) {
         const data = await response.json();
         console.log(data);
         showNotification(this.t('success_start_sqlControl'));
-      }else {
+      } else {
         this.sqlSettings.enabled = false;
         console.error('启动sql失败');
         showNotification(this.t('error_start_sqlControl'), 'error');
       }
-    }else{
-      const response = await fetch('/stop_sql',{
+
+    } else {
+      
+      // ==========================================
+      // 3. 原有的停止逻辑 (用户关闭开关时执行)
+      // ==========================================
+      const response = await fetch('/stop_sql', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         },
       });
-      if (response.ok){
+      if (response.ok) {
         const data = await response.json();
         console.log(data);
         showNotification(this.t('success_stop_sqlControl'));
-      }else {
+      } else {
         this.sqlSettings.enabled = true;
         console.error('停止sql失败');
         showNotification(this.t('error_stop_sqlControl'), 'error');
       }
     }
+    
+    // ==========================================
+    // 4. 操作成功后保存配置
+    // ==========================================
     this.autoSaveSettings();
   },
   
@@ -15459,5 +15510,145 @@ closeTaskCenter() {
     this.viewingTaskDetail = null; // 清除详情状态
     if (this.taskRefreshTimer) clearInterval(this.taskRefreshTimer);
 },
+
+  // 处理启动开关的点击事件
+  handleEnableToggle(newValue) {
+    // 只有在用户试图“开启”开关时 (newValue === true) 才进行校验
+    if (newValue === true) {
+      // 检查 cc_path 是否为空
+      if (!this.CLISettings.cc_path || this.CLISettings.cc_path.trim() === '') {
+        
+        // 1. 调用你提供的报错函数 
+        // 这里的提示语使用了你模板里现成的 t('pleaseSelectWorkspaceFirst')
+        const errorMsg = this.t ? this.t('pleaseSelectWorkspaceFirst') : '请先配置 Workspace 工作区路径';
+        showNotification(errorMsg, 'error', 'Error');
+
+        // 2. 强制把开关重置回关闭状态 (阻止启动)
+        // 使用 $nextTick 确保 Vue 能正确更新 DOM
+        this.$nextTick(() => {
+          this.CLISettings.enabled = false;
+        });
+
+        // 3. 拦截执行，直接 return，不触发后续的保存
+        return; 
+      }
+    }
+
+    // 如果校验通过（或者用户只是在关闭开关），则正常执行原来的保存逻辑
+    this.autoSaveSettings();
+  },
+
+  handleWebSearchToggle(newValue) {
+    if (newValue === true) {
+      const settings = this.webSearchSettings;
+      let errorMsg = '';
+
+      // --- 1. 校验搜索引擎配置 ---
+      switch (settings.engine) {
+        case 'searxng':
+          if (!settings.searxng_url?.trim()) errorMsg = this.t('pleaseConfigSearxngUrl');
+          break;
+        case 'tavily':
+          if (!settings.tavily_api_key?.trim()) errorMsg = this.t('pleaseConfigTavilyApiKey');
+          break;
+        case 'bing':
+          if (!settings.bing_api_key?.trim()) errorMsg = this.t('pleaseConfigBingApiKey');
+          else if (!settings.bing_search_url?.trim()) errorMsg = this.t('pleaseConfigBingSearchUrl');
+          break;
+        case 'google':
+          if (!settings.google_api_key?.trim()) errorMsg = this.t('pleaseConfigGoogleApiKey');
+          else if (!settings.google_cse_id?.trim()) errorMsg = this.t('pleaseConfigGoogleCseId');
+          break;
+        case 'brave':
+          if (!settings.brave_api_key?.trim()) errorMsg = this.t('pleaseConfigBraveApiKey');
+          break;
+        case 'exa':
+          if (!settings.exa_api_key?.trim()) errorMsg = this.t('pleaseConfigExaApiKey');
+          break;
+        case 'serper':
+          if (!settings.serper_api_key?.trim()) errorMsg = this.t('pleaseConfigSerperApiKey');
+          break;
+        case 'bochaai':
+          if (!settings.bochaai_api_key?.trim()) errorMsg = this.t('pleaseConfigBochaaiApiKey');
+          break;
+        // duckduckgo 无需强制配置，直接放行
+      }
+
+      // --- 2. 校验网页解析器配置 (前提是搜索引擎已经通过校验) ---
+      if (!errorMsg) {
+        switch (settings.crawler) {
+          case 'crawl4ai':
+            if (!settings.Crawl4Ai_url?.trim()) errorMsg = this.t('pleaseConfigCrawl4aiUrl');
+            break;
+          case 'firecrawl':
+            if (!settings.firecrawl_url?.trim()) errorMsg = this.t('pleaseConfigFirecrawlUrl');
+            // 如果你觉得 Firecrawl 的 API Key 也必须强制填写，可以解除下面这行的注释：
+            // else if (!settings.firecrawl_api_key?.trim()) errorMsg = this.t('pleaseConfigFirecrawlApiKey');
+            break;
+          
+          // 注意：jina API Key 是可选的，所以这里不写 case 'jina' 的报错逻辑，直接放行
+          // simpleRequest 和 mdnew 也没有必填项，直接放行
+        }
+      }
+
+      // --- 3. 拦截与报错 ---
+      if (errorMsg) {
+        // 报错提醒，标题也国际化
+        const errorTitle = this.t ? this.t('configIncomplete') : 'Config Incomplete';
+        showNotification(errorMsg, 'error', errorTitle);
+
+        // 强制重置开关为关闭状态
+        this.$nextTick(() => {
+          this.webSearchSettings.enabled = false;
+        });
+
+        // 阻断执行，不触发保存
+        return;
+      }
+    }
+
+    // 校验全部通过，或者用户是主动关闭开关，则正常执行保存
+    this.autoSaveSettings();
+  },
+
+  // 代码解释器启动开关的拦截处理
+  handleInterpreterToggle(newValue) {
+    if (newValue === true) {
+      const settings = this.codeSettings;
+      let errorMsg = '';
+
+      // 根据选择的引擎校验必填项
+      switch (settings.engine) {
+        case 'e2b':
+          if (!settings.e2b_api_key?.trim()) {
+            errorMsg = this.t('pleaseConfigE2bApiKey');
+          }
+          break;
+        case 'sandbox':
+          if (!settings.sandbox_url?.trim()) {
+            errorMsg = this.t('pleaseConfigSandboxUrl');
+          }
+          break;
+      }
+
+      // 如果有报错信息，进行拦截
+      if (errorMsg) {
+        // 报错提醒 (复用刚才加的 configIncomplete)
+        const errorTitle = this.t ? this.t('configIncomplete') : 'Config Incomplete';
+        showNotification(errorMsg, 'error', errorTitle);
+
+        // 强制重置开关为关闭状态
+        this.$nextTick(() => {
+          this.codeSettings.enabled = false;
+        });
+
+        // 阻断执行，不触发保存
+        return;
+      }
+    }
+
+    // 校验通过或关闭开关，正常执行保存
+    this.autoSaveSettings();
+  },
 
 }
