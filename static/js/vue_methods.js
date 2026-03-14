@@ -1971,7 +1971,7 @@ let vue_methods = {
                 content: '',
                 pure_content: '', 
                 backend_content: [{ role: 'assistant', content: '' }],
-                isOmni: this.settings.enableOmniTTS, 
+                isOmni: this.settings.enableOmniTTS || this.fastSettings.enableOmniTTS, 
                 omniAudioChunks: [], 
                 ttsChunks: [],        
                 chunks_voice: [],     
@@ -3717,6 +3717,18 @@ let vue_methods = {
       }
     },
 
+    async selectMainProvider(providerId) {
+      const provider = this.modelProviders.find(p => p.id === providerId);
+      console.log(provider)
+      if (provider) {
+        console.log("provider")
+        this.fastSettings.model = provider.modelId;
+        this.fastSettings.base_url = provider.url;
+        this.fastSettings.api_key = provider.apiKey;
+        await this.autoSaveSettings();
+      }
+    },
+
     // Claude code 供应商选择
     async selectCCProvider(providerId) {
       const provider = this.modelProviders.find(p => p.id === providerId);
@@ -3861,6 +3873,12 @@ let vue_methods = {
         this.selectMainProvider(this.settings.selectedProvider);
       }
     },
+    handleFastProviderVisibleChange(visible) {
+      if (!visible) {
+        this.selectMainProvider(this.fastSettings.selectedProvider);
+      }
+    },
+
     handleCCProviderVisibleChange(visible) {
       if (!visible) {
         this.selectCCProvider(this.ccSettings.selectedProvider);

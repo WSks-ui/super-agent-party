@@ -710,6 +710,17 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </el-button>
                     </el-tooltip>
 
+                    <el-tooltip :content="t('fastResponseButton')" placement="top">
+                      <el-button
+                        @click="fastSettings.enabled = !fastSettings.enabled; autoSaveSettings()"
+                        class="icon-btn deep-think-btn"
+                        :type="fastSettings.enabled ? 'primary' : 'default'"
+                        v-if="MoreButtonDict.find(b => b.name === 'fastResponseButton')?.enabled&&!isCapsuleMode"
+                        circle>
+                        <i class="fa-solid fa-gauge-high"></i>
+                      </el-button>
+                    </el-tooltip>
+
                     <el-tooltip :content="t('deepThinking')" placement="top">
                       <el-button
                         @click="reasonerSettings.enabled = !reasonerSettings.enabled; autoSaveSettings()"

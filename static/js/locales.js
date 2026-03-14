@@ -1474,7 +1474,7 @@ key3`,
         'pleaseConfigSqlDbname': 'SQL 控制工具配置不完整，请配置数据库名称 (dbname)',
         'fastModel': '快速应答模型',
         'fastModelConfiguration': '快速应答模型配置',
-        'Alt':"Alt (macOS上是option)"
+        'fastResponseButton': '快速应答',
     },
     'en-US': {
         'chat': 'Chat',
@@ -2947,6 +2947,7 @@ Key3`,
         'pleaseConfigSqlPassword': 'SQL Control tool configuration is incomplete. Please configure Database Password',
         'pleaseConfigSqlDbname': 'SQL Control tool configuration is incomplete. Please configure Database Name (dbname)',
         'fastModel': 'Fast Response Model',
-        'fastModelConfiguration': 'Fast Response Model Configuration'
+        'fastModelConfiguration': 'Fast Response Model Configuration',
+        'fastResponseButton': 'Fast Response',
     },
   };
