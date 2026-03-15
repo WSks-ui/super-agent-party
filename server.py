@@ -5429,7 +5429,7 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
     async_tools_id = request.asyncToolsID or None
     if model == 'super-model':
         current_settings = await load_settings()
-        if current_settings['fast']['enabled']:
+        if current_settings['fast']['enabled'] and not request.is_sub_agent:
             # 复制 fast 配置，排除 enabled 字段
             fast_config = {k: v for k, v in current_settings['fast'].items() if k != 'enabled'}
             current_settings.update(fast_config)
@@ -5505,7 +5505,7 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
             if agentSettings['system_prompt']:
                 content_prepend(request.messages, 'user', agentSettings['system_prompt'] + "\n\n")
         
-        if agent_settings['fast']['enabled']:
+        if agent_settings['fast']['enabled'] and not request.is_sub_agent:
             # 复制 fast 配置，排除 enabled 字段
             fast_config = {k: v for k, v in agent_settings['fast'].items() if k != 'enabled'}
             agent_settings.update(fast_config)
