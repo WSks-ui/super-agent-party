@@ -5178,7 +5178,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <div class="header-left">
                         <span>
                           <el-icon>
-                            <i class="fa-solid fa-microchip"></i>
+                            <i class="fa-solid fa-gauge-high"></i>
                           </el-icon>
                           {{ t('fastModelConfiguration') }}
                         </span>
@@ -14641,7 +14641,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                     </div>
 
                     <!-- TTS 控制区 -->
-                    <div v-if="(ttsSettings.enabled || settings.enableOmniTTS) && message.role === 'assistant'" class="tts-controls">
+                    <div v-if="(ttsSettings.enabled || settings.enableOmniTTS || fastSettings.enableOmniTTS) && message.role === 'assistant'" class="tts-controls">
                       <el-tooltip :content="message.isPlaying ? t('pause') : t('play')">
                         <el-button @click="toggleTTS(message)" circle size="small">
                           <i :class="message.isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
