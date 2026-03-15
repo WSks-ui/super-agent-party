@@ -5429,6 +5429,10 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
     async_tools_id = request.asyncToolsID or None
     if model == 'super-model':
         current_settings = await load_settings()
+        if current_settings['fast']['enabled']:
+            # 复制 fast 配置，排除 enabled 字段
+            fast_config = {k: v for k, v in current_settings['fast'].items() if k != 'enabled'}
+            current_settings.update(fast_config)
         if override_memory_id:
             current_settings["memorySettings"]["is_memory"] = True
             current_settings["memorySettings"]["selectedMemory"] = override_memory_id
@@ -5454,18 +5458,15 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
         if reasoner_vendor == 'Dify':
             reasoner_client_class = DifyOpenAIAsync
         # 动态更新客户端配置
-        if (current_settings['api_key'] != settings['api_key'] 
-            or current_settings['base_url'] != settings['base_url']):
-            client = client_class(
-                api_key=current_settings['api_key'],
-                base_url=current_settings['base_url'] or "https://api.openai.com/v1",
-            )
-        if (current_settings['reasoner']['api_key'] != settings['reasoner']['api_key'] 
-            or current_settings['reasoner']['base_url'] != settings['reasoner']['base_url']):
-            reasoner_client = reasoner_client_class(
-                api_key=current_settings['reasoner']['api_key'],
-                base_url=current_settings['reasoner']['base_url'] or "https://api.openai.com/v1",
-            )
+        client = client_class(
+            api_key=current_settings['api_key'],
+            base_url=current_settings['base_url'] or "https://api.openai.com/v1",
+        )
+        reasoner_client = reasoner_client_class(
+            api_key=current_settings['reasoner']['api_key'],
+            base_url=current_settings['reasoner']['base_url'] or "https://api.openai.com/v1",
+        )
+        print('model:',current_settings['model'])
         # 将"system_prompt"插入到request.messages[0].content中
         if current_settings['system_prompt']:
             content_prepend(request.messages, 'system', current_settings['system_prompt'] + "\n\n")
@@ -5503,6 +5504,11 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
             # 将"system_prompt"插入到request.messages[0].content中
             if agentSettings['system_prompt']:
                 content_prepend(request.messages, 'user', agentSettings['system_prompt'] + "\n\n")
+        
+        if agent_settings['fast']['enabled']:
+            # 复制 fast 配置，排除 enabled 字段
+            fast_config = {k: v for k, v in agent_settings['fast'].items() if k != 'enabled'}
+            agent_settings.update(fast_config)
         vendor = 'OpenAI'
         for modelProvider in agent_settings['modelProviders']: 
             if modelProvider['id'] == agent_settings['selectedProvider']:
