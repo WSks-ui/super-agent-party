@@ -981,10 +981,17 @@ async function getAnimationFiles() {
     if (urls.length === 0) {
       const fallback = 
       [
+       `${window.location.protocol}//${window.location.host}/vrm/animations/greeting.vrma`,
         `${window.location.protocol}//${window.location.host}/vrm/animations/akimbo.vrma`,
        `${window.location.protocol}//${window.location.host}/vrm/animations/play_fingers.vrma`,
        `${window.location.protocol}//${window.location.host}/vrm/animations/scratch_head.vrma`,
-       `${window.location.protocol}//${window.location.host}/vrm/animations/stretch.vrma`
+       `${window.location.protocol}//${window.location.host}/vrm/animations/stretch.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/shoot.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/peace_sign.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/show_full_body.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/squat.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/model_pose.vrma`,
+       `${window.location.protocol}//${window.location.host}/vrm/animations/spin.vrma`,
       ];
       console.warn('没有选中任何动作，使用兜底动画');
       return fallback;
@@ -996,7 +1003,7 @@ async function getAnimationFiles() {
   } catch (err) {
     console.error('获取动画列表失败：', err);
     // 兜底
-    return [`${window.location.protocol}//${window.location.host}/vrm/animations/akimbo.vrma`];
+    return [`${window.location.protocol}//${window.location.host}/vrm/animations/greeting.vrma`];
   }
 }
 
