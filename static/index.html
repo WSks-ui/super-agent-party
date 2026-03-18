@@ -5947,29 +5947,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </el-select>
                       </el-form-item>
                     </div>
-                    <el-alert
-                      type="info"
-                      :closable="false"
-                      class="mb-2"
-                    >
-                      <template #default>
-                        <div class="alert-content">
-                          {{ t('firstTimeUse') }}
-                          <el-link
-                            type="primary"
-                            :underline="false"
-                            class="font-medium"
-                            @click="switchToApiBox"
-                          >
-                            <el-icon class="mr-1">
-                              <i class="fa-solid fa-key"></i>
-                            </el-icon>{{ t('keyBoxInterface') }}
-                          </el-link>
-                          {{ t('addProviderReturnSelect') }}
-                          {{ t('addimgNotice') }}
-                        </div>
-                      </template>
-                    </el-alert>
                   </div>
                 </el-form>
               </div>
