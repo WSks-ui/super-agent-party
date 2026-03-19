@@ -432,12 +432,20 @@ function setNaturalPose(vrm) {
     if (!isVRM1){
         v = -1;
     }
-    // 左臂自然下垂
-    vrm.humanoid.getNormalizedBoneNode( 'leftUpperArm' ).rotation.z = -0.4 * Math.PI * v;
+    // 1. 调整双臂：将 0.4 改为 0.45 让手臂更贴近身体，并增加 x 轴让手臂微向前倾，更放松
+    const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+    if (leftArm) {
+        leftArm.rotation.z = -0.45 * Math.PI * v; 
+        leftArm.rotation.x = 0.05; // 手臂微微前倾
+    }
 
-    // 右臂自然下垂
-    vrm.humanoid.getNormalizedBoneNode( 'rightUpperArm' ).rotation.z = 0.4 * Math.PI * v;
+    const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+    if (rightArm) {
+        rightArm.rotation.z = 0.45 * Math.PI * v;
+        rightArm.rotation.x = 0.05; // 手臂微微前倾
+    }
     
+    // 手腕保持原来的逻辑
     const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
     if (leftHand) {
         leftHand.rotation.z = 0.1 * v; // 手腕自然弯曲
@@ -448,6 +456,7 @@ function setNaturalPose(vrm) {
         rightHand.rotation.z = -0.1 * v; // 手腕自然弯曲
         rightHand.rotation.x = 0.05;
     }
+
     // 添加手指的自然弯曲（如果模型支持）
     const fingerBones = [
         'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
@@ -604,14 +613,32 @@ class IdleAnimationManager {
     
     easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
     
-    getNaturalRotation(boneName) { /* 同原代码 */ 
-         // ... 请保留原代码中的 getNaturalRotation 实现 ...
-         // 简写以节省空间
+    getNaturalRotation(boneName) { 
          const euler = new THREE.Euler(0, 0, 0);
          const v = isVRM1 ? 1 : -1;
-         if(boneName === 'leftUpperArm') euler.set(0, 0, -0.4 * Math.PI * v);
-         else if(boneName === 'rightUpperArm') euler.set(0, 0, 0.4 * Math.PI * v);
-         // ... 其他骨骼 ...
+         
+         // 手臂更贴身，微微前倾
+         if(boneName === 'leftUpperArm') {
+             euler.set(0.05, 0, -0.45 * Math.PI * v);
+         }
+         else if(boneName === 'rightUpperArm') {
+             euler.set(0.05, 0, 0.45 * Math.PI * v);
+         }
+         // 手腕微曲
+         else if(boneName === 'leftHand') {
+             euler.set(0.05, 0, 0.1 * v);
+         }
+         else if(boneName === 'rightHand') {
+             euler.set(0.05, 0, -0.1 * v);
+         }
+         // 双腿微岔
+         else if(boneName === 'leftUpperLeg') {
+             euler.set(0, 0.05 * v, 0.04 * v);
+         }
+         else if(boneName === 'rightUpperLeg') {
+             euler.set(0, -0.05 * v, -0.04 * v);
+         }
+
          const q = new THREE.Quaternion();
          q.setFromEuler(euler);
          return q;
