@@ -1684,19 +1684,16 @@ let vue_methods = {
             this.isReadInterruption = true;
         }
 
+        if (this.currentAudio){
+            this.currentAudio.pause();
+            this.currentAudio = null;
+        }
+        this.stopGenerate();
+        this.stopAllAudioPlayback();
+        this.TTSrunning = false;
+
         this.isTyping = true;
         this.startTimer();
-
-        // 如果开启了打断，停止当前播放
-        if (this.ttsSettings.enabledInterruption) {
-            if (this.currentAudio){
-                this.currentAudio.pause();
-                this.currentAudio = null;
-                this.stopGenerate();
-                this.stopAllAudioPlayback();
-            }
-            this.TTSrunning = false;
-        }
 
         if (typeof this.sendTTSStatusToVRM === 'function') {
             this.sendTTSStatusToVRM('ttsStarted', {});
@@ -2723,8 +2720,19 @@ let vue_methods = {
 
     async playPCMChunk(b64, currentText = '', message = null) {
       this.isOmniPlaying = true;
+      
+      if (message) {
+        message.isPlaying = true;
+        // 【关键修复 1】初始化时长变量，防止 NaN 或 undefined
+        if (message.omniDuration === undefined) message.omniDuration = 0;
+        if (message.omniCurrentTime === undefined) message.omniCurrentTime = 0;
+        if (!message.generationFinished) {
+          message.omniAudioChunks.push(b64);
+        }
+      }
+
       try {
-        // 1. 确保 AudioContext 已启动（浏览器安全策略要求）
+        // 1. 确保 AudioContext 已启动
         if (!this.audioCtx) {
           this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
@@ -2732,39 +2740,42 @@ let vue_methods = {
           await this.audioCtx.resume();
         }
 
-        // 2. 解码 Base64 PCM 数据 (16-bit, 24000Hz)
+        // 2. 解码 Base64 PCM 数据
         const raw = atob(b64);
         const pcm16 = new Int16Array(raw.length / 2);
         for (let i = 0; i < raw.length; i += 2) {
-          // PCM 小端序转换
           pcm16[i >> 1] = raw.charCodeAt(i) | (raw.charCodeAt(i + 1) << 8);
         }
 
-        // 3. 转换为 Web Audio 缓冲 (Float32Array)
+        // 3. 转换为 Web Audio 缓冲
         const sampleRate = 24000;
         const buf = this.audioCtx.createBuffer(1, pcm16.length, sampleRate);
         const floatData = buf.getChannelData(0);
         for (let i = 0; i < pcm16.length; i++) {
-          // 归一化到 [-1, 1] 范围
           floatData[i] = pcm16[i] / 32768; 
         }
 
-        // 4. 排程管理：计算当前块应该在什么时候开始播放
+        const chunkDuration = buf.duration;
+
+        // 【关键修复 2】累加总时长！每收到一块音频，总时长就增加一点
+        if (message && message.isOmni && !message.generationFinished) {
+          message.omniDuration += chunkDuration;
+        }
+
+        // 4. 排程管理
         const now = this.audioCtx.currentTime;
-        // 如果累积的排程时间落后于当前时间，则从当前时间开始
         if (this.audioStartTime < now) {
           this.audioStartTime = now;
         }
 
-        // 5. 创建音频源节点
+        // 5. 创建音频节点
         const src = this.audioCtx.createBufferSource();
         src.buffer = buf;
 
-        // 【关键修复 1】将当前节点加入全局管理数组，以便 stopAllAudioPlayback 可以强制停止它
         if (!this.activeSources) this.activeSources = [];
         this.activeSources.push(src);
 
-        // 6. VRM 同步：将音频和文字通过 WebSocket 发送给 VRM 模型
+        // 6. VRM 同步
         if (this.vrmOnline) {
           this.sendTTSStatusToVRM('omniStreaming', {
             audioData: b64,
@@ -2776,47 +2787,49 @@ let vue_methods = {
 
         // 7. 音量控制节点
         const gainNode = this.audioCtx.createGain();
-        // 关键逻辑：如果 VRM 在线，本地主界面静音（或极小声），由 VRM 界面发声
         gainNode.gain.value = this.vrmOnline ? 0.000001 : 1.0;
 
         src.connect(gainNode);
         gainNode.connect(this.audioCtx.destination);
 
-        // 8. 绑定进度更新与结束回调
-        const chunkDuration = buf.duration;
-
+        // 8. 结束回调
         src.onended = () => {
-          // 【关键修复 2】播放结束（或被强制 stop）后，从数组中移除该节点，防止内存泄漏
+          // 清理当前节点
           if (this.activeSources) {
             this.activeSources = this.activeSources.filter(s => s !== src);
           }
 
-          // 只有在消息仍处于播放状态时才更新进度条（防止手动停止后进度还在跳）
-          if (message && message.isOmni && message.isPlaying) {
+          // ✨ 【最关键的一步】只有自然播放结束的节点 (!src.isForceStopped)，才允许累加进度条！
+          if (message && message.isOmni && !src.isForceStopped) {
+            // 累加当前播放进度
             message.omniCurrentTime += chunkDuration;
+            
+            // 防止浮点数误差导致当前时间超过总时长
+            if (message.omniCurrentTime > message.omniDuration) {
+              message.omniCurrentTime = message.omniDuration;
+            }
 
-            // 播放结束判定：如果当前进度接近总时长
-            if (message.omniCurrentTime >= (message.omniDuration || 0) - 0.05) {
-              message.isPlaying = false;
-              message.omniCurrentTime = message.omniDuration; // 进度条吸附到终点
+            // 结束判定：API 生成完毕 且 喇叭里没声音了
+            const isStreamFullyDone = message.generationFinished && this.activeSources.length === 0;
+
+            if (isStreamFullyDone) {
+              message.isPlaying = false; // 图标恢复为播放！
+              message.omniCurrentTime = message.omniDuration; // 进度条吸附到满格
               
-              // 通知 VRM 播放彻底结束，重置表情
               this.sendTTSStatusToVRM('allChunksCompleted', {});
               this.isOmniPlaying = false;
-              console.log('Playback finished for message:', message.id);
+              console.log('Playback completely finished for message:', message.id);
             }
           }
           
-          // 显式断开节点，帮助垃圾回收
           try {
             src.disconnect();
             gainNode.disconnect();
-          } catch (e) {
-            // 忽略断开连接时的潜在错误
-          }
+          } catch (e) {}
         };
+        
 
-        // 9. 启动播放并更新下一段的起始时间
+        // 9. 启动播放
         src.start(this.audioStartTime);
         this.audioStartTime += buf.duration;
 
@@ -8232,9 +8245,12 @@ handleCreateSlackSeparator(val) {
         this.currentReadAudio.pause();
         this.currentReadAudio = null;
       }
+      
       // 3. 【核心修复】停止所有 Web Audio API 的 Omni 节点
       if (this.activeSources && this.activeSources.length > 0) {
         this.activeSources.forEach(src => {
+          // ✨ 新增：给节点打上被强杀的标记，防止 onended 扰乱进度条
+          src.isForceStopped = true; 
           try {
             src.stop(); // 立即停止播放
           } catch (e) {
@@ -8244,16 +8260,14 @@ handleCreateSlackSeparator(val) {
         // 清空数组
         this.activeSources = [];
       }
+      
+      this.isOmniPlaying = false; // ✨ 新增：重置全局播放状态
       this.audioStartTime = 0; 
+      
       // 4. 重置所有消息状态
       this.messages.forEach(message => {
         message.isPlaying = false;
       });
-
-      // 5. 也可以选择暂停 AudioContext (可选，更彻底)
-      // if (this.audioCtx && this.audioCtx.state === 'running') {
-      //   this.audioCtx.suspend();
-      // }
 
       // 6. 发送停止信号到VRM
       this.sendTTSStatusToVRM('stopSpeaking', {});

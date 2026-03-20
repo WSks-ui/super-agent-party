@@ -738,12 +738,13 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <template v-else>
                         <div class="omni-progress-wrapper" style="margin-left: 20px;">
                           <el-slider 
+                            class="omni-slider"
                             v-model="message.omniCurrentTime" 
                             :max="message.omniDuration > 0 ? message.omniDuration : 0.1" 
                             :step="0.01"
                             :show-tooltip="false"
                             @change="(val) => seekOmniTTS(message, val)"
-                          />
+                          ></el-slider>
                           <span class="tts-status-time">
                             {{ (message.omniCurrentTime || 0).toFixed(1) }}s / {{ (message.omniDuration || 0).toFixed(1) }}s
                           </span>
@@ -14837,12 +14838,13 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <template v-else>
                         <div class="omni-progress-wrapper" style="margin-left: 20px;">
                           <el-slider 
+                            class="omni-slider"
                             v-model="message.omniCurrentTime" 
                             :max="message.omniDuration > 0 ? message.omniDuration : 0.1" 
                             :step="0.01"
                             :show-tooltip="false"
                             @change="(val) => seekOmniTTS(message, val)"
-                          />
+                          ></el-slider>
                           <span class="tts-status-time">
                             {{ (message.omniCurrentTime || 0).toFixed(1) }}s / {{ (message.omniDuration || 0).toFixed(1) }}s
                           </span>

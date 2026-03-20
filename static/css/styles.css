@@ -6913,6 +6913,11 @@ hr.footnotes-sep {
   white-space: nowrap;
 }
 
+.omni-slider {
+  width: 150px !important;
+  min-width: 150px !important;
+}
+
 /* =========================================
    Advanced Pro Notification (Top-Right Toast)
    ========================================= */
