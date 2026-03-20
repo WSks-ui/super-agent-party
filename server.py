@@ -5524,14 +5524,18 @@ async def chat_endpoint(request: ChatRequest,fastapi_request: Request):
         if reasoner_vendor == 'Dify':
             reasoner_client_class = DifyOpenAIAsync
         # 动态更新客户端配置
-        client = client_class(
-            api_key=current_settings['api_key'],
-            base_url=current_settings['base_url'] or "https://api.openai.com/v1",
-        )
-        reasoner_client = reasoner_client_class(
-            api_key=current_settings['reasoner']['api_key'],
-            base_url=current_settings['reasoner']['base_url'] or "https://api.openai.com/v1",
-        )
+        if (current_settings['api_key'] != settings['api_key'] 
+            or current_settings['base_url'] != settings['base_url']):
+            client = client_class(
+                api_key=current_settings['api_key'],
+                base_url=current_settings['base_url'] or "https://api.openai.com/v1",
+            )
+        if (current_settings['reasoner']['api_key'] != settings['reasoner']['api_key'] 
+            or current_settings['reasoner']['base_url'] != settings['reasoner']['base_url']):
+            reasoner_client = reasoner_client_class(
+                api_key=current_settings['reasoner']['api_key'],
+                base_url=current_settings['reasoner']['base_url'] or "https://api.openai.com/v1",
+            )
         print('model:',current_settings['model'])
         # 将"system_prompt"插入到request.messages[0].content中
         if current_settings['system_prompt']:
