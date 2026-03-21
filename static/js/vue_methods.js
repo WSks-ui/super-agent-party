@@ -6931,9 +6931,8 @@ handleCreateSlackSeparator(val) {
     initWebSpeechAPI() {
       if(isElectron){
         showNotification(this.t('webSpeechNotSupportedInElectron'), 'error');
-        const url = this.partyURL;
-        window.electronAPI.openExternal(url);
         this.asrSettings.enabled = false;
+        this.autoSaveSettings();
         return false;
       }
 
