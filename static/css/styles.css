@@ -1275,19 +1275,20 @@ body {
 }
 
 .top-bar-btn {
-  height: 24px;
-  width: 24px;
+  height: 16px;
+  width: 16px;
   padding: 0;
   color: var(--el-text-color) !important;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0!important;
 }
 
 .top-bar-btn .el-icon {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
 }
 
 .top-bar-btn:hover {
@@ -9762,4 +9763,43 @@ hr.footnotes-sep {
 .large-workspace-tree .el-tree-node.is-current > .el-tree-node__content {
     background-color: var(--el-color-primary-light-9) !important;
     color: var(--el-color-primary) !important;
+}
+
+/* 全局重置所有 .icon-btn 按钮的默认边框和背景 */
+.icon-btn.el-button {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease;
+
+  /* 保持圆角和内边距（Element Plus circle 按钮已定义） */
+  &.el-button--circle {
+    padding: 8px;
+  }
+
+  /* 激活状态（type="primary" 时）只改变图标颜色或轻微背景，不出现边框 */
+  &.el-button--primary {
+    background-color: rgba(var(--el-color-primary-rgb), 0.1) !important;
+    color: var(--el-color-primary) !important;
+
+    &:hover {
+      background-color: rgba(var(--el-color-primary-rgb), 0.2) !important;
+    }
+  }
+
+  /* 默认状态（type="default"） */
+  &.el-button--default {
+    color: var(--el-text-color-regular);
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.05) !important;
+      color: var(--el-text-color-primary);
+    }
+  }
+
+  /* 禁用状态（如果有） */
+  &.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }

@@ -15987,7 +15987,7 @@ closeTaskCenter() {
       
       const res = await window.electronAPI.deleteWorkspaceFile(data.path);
       if (res.success) {
-        this.$message?.success(this.t('deleteSuccess') || '删除成功');
+        showNotification(this.t('deleteSuccess'),'success');
         // 从前端界面中动态移除该节点，避免重新读取整个目录树
         const parent = node.parent;
         const children = parent.data.children || parent.childNodes;
@@ -15995,8 +15995,9 @@ closeTaskCenter() {
         if (index !== -1) {
           children.splice(index, 1);
         }
+        
       } else {
-        this.$message?.error((this.t('deleteFailed') || '删除失败: ') + res.error);
+        showNotification(this.t('deleteFailed'),'error');
       }
     } catch (error) {
       // 用户点击了取消，不做任何处理
