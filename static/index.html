@@ -774,17 +774,8 @@ function updateElement(el, rawMarkdown, formatFn) {
 
                           <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
                           <div class="message-attachments-display user-msg-attachments" 
-                              v-if="message.fileLinks?.length || message.imageLinks?.length || message.hasDesktopVision">
-                              
-                              <!-- 1. 桌面截图指示器 (反色版) -->
-                              <div v-if="message.hasDesktopVision" class="attachment-item-display vision-item">
-                                  <div class="file-card-box">
-                                      <div class="file-icon"><i class="fa-solid fa-desktop"></i></div>
-                                      <div class="file-info">
-                                          <span class="file-name">{{ t('desktopVisionIndicator') || '桌面截图' }}</span>
-                                      </div>
-                                  </div>
-                              </div>
+                              v-if="message.fileLinks?.length || message.imageLinks?.length">
+                            
 
                               <!-- 2. 图片附件 (统一方块) -->
                               <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">
@@ -8121,6 +8112,25 @@ function updateElement(el, rawMarkdown, formatFn) {
                   </div>
                 </el-form> 
               </div>
+              <!-- 视觉控制界面 -->
+              <div v-show="subMenu === 'visionControl'" class="page">
+                <el-form :model="visionControlSettings" class="settings-form"  label-position="top">
+                  <div class="tool-item">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>
+                          <el-icon>
+                            <i class="fa-solid fa-arrow-pointer"></i>
+                          </el-icon>
+                          {{ t('visionControl') }}
+                        </span>
+                      </div>
+                      <el-switch v-model="visionControlSettings.enabled" @click.stop @change="autoSaveSettings"/>
+                    </div>
+                  </div>
+                </el-form> 
+              </div>
+
               <!-- 终端工具界面 -->
               <div v-show="subMenu === 'CLI'" class="page">
               <el-tabs v-model="activeCLITab">
@@ -15007,17 +15017,8 @@ function updateElement(el, rawMarkdown, formatFn) {
 
                         <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
                         <div class="message-attachments-display user-msg-attachments" 
-                            v-if="message.fileLinks?.length || message.imageLinks?.length || message.hasDesktopVision">
+                            v-if="message.fileLinks?.length || message.imageLinks?.length">
                             
-                            <!-- 1. 桌面截图指示器 (反色版) -->
-                            <div v-if="message.hasDesktopVision" class="attachment-item-display vision-item">
-                                <div class="file-card-box">
-                                    <div class="file-icon"><i class="fa-solid fa-desktop"></i></div>
-                                    <div class="file-info">
-                                        <span class="file-name">{{ t('desktopVisionIndicator') || '桌面截图' }}</span>
-                                    </div>
-                                </div>
-                            </div>
 
                             <!-- 2. 图片附件 (统一方块) -->
                             <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">

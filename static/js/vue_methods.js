@@ -1366,6 +1366,7 @@ let vue_methods = {
           this.webSearchSettings = data.data.webSearch || this.webSearchSettings;
           this.codeSettings = data.data.codeSettings || this.codeSettings;
           this.CLISettings = data.data.CLISettings || this.CLISettings;
+          this.visionControlSettings = data.data.visionControlSettings || this.visionControlSettings;
           this.ccSettings = data.data.ccSettings || this.ccSettings;
           this.qcSettings = data.data.qcSettings || this.qcSettings;
           this.dsSettings = data.data.dsSettings || this.dsSettings;
@@ -1432,6 +1433,7 @@ let vue_methods = {
           this.webSearchSettings = data.data.webSearch || this.webSearchSettings;
           this.codeSettings = data.data.codeSettings || this.codeSettings;
           this.CLISettings = data.data.CLISettings || this.CLISettings;
+          this.visionControlSettings = data.data.visionControlSettings || this.visionControlSettings;
           this.ccSettings = data.data.ccSettings || this.ccSettings;
           this.qcSettings = data.data.qcSettings || this.qcSettings;
           this.dsSettings = data.data.dsSettings || this.dsSettings;
@@ -3027,6 +3029,7 @@ let vue_methods = {
           webSearch: this.webSearchSettings, 
           codeSettings: this.codeSettings,
           CLISettings: this.CLISettings,
+          visionControlSettings: this.visionControlSettings,
           ccSettings: this.ccSettings,
           qcSettings: this.qcSettings,
           dsSettings: this.dsSettings,

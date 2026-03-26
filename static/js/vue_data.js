@@ -360,6 +360,9 @@ let vue_data = {
       engine: 'local',
       cc_path: '',
     },
+    visionControlSettings:{
+      enabled: false,
+    },
     ccSettings: {
       enabled: false,
       selectedProvider: null,
@@ -1277,6 +1280,7 @@ let vue_data = {
       { id: 'sticker', title: 'sticker/image', icon: 'fa-solid fa-face-smile'},
       { id: 'interpreter', title: 'interpreter', icon: 'fa-solid fa-code'},
       { id: 'CLI', title: 'CLItool', icon: 'fa-solid fa-computer'},
+      { id: 'visionControl', title: 'visionControl', icon: 'fa-solid fa-arrow-pointer'},
       { id: 'HA', title: 'homeAssistant', icon: 'fa-solid fa-house'},
       { id: 'chromeMCP', title: 'browserControl', icon: 'fa-solid fa-compass' },
       { id: 'sql', title: 'sqlControl', icon: 'fa-solid fa-database' },

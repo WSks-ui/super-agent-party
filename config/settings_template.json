@@ -182,6 +182,9 @@
       "engine": "local",
       "cc_path": ""
     },
+    "visionControlSettings":{
+      "enabled": false
+    },
     "ccSettings": {
       "enabled":true,
       "selectedProvider": null,
