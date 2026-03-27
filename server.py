@@ -961,7 +961,8 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         keyboard_press_async,
         keyboard_hotkey_async,
         keyboard_hold_async,
-        wait_async
+        wait_async,
+        screenshot_async
     )
 
     # ==================== 2. 定义工具映射表 ====================
@@ -1066,7 +1067,8 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         "keyboard_press_async":keyboard_press_async,
         "keyboard_hotkey_async":keyboard_hotkey_async,
         "keyboard_hold_async":keyboard_hold_async,
-        "wait_async":wait_async
+        "wait_async":wait_async,
+        "screenshot_async":screenshot_async
     }
     
     # ==================== 3. 权限拦截逻辑 (Human-in-the-loop) ====================
@@ -2200,7 +2202,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         
         # 1. 只要开启了计算机控制 或者 符合桌面视觉唤醒词条件，就进行初始截图
         should_capture = False
-        if vision_control_enabled:
+        if vision_control_enabled and settings.get('visionControlSettings', {}).get('desktopVision', False):
             should_capture = True
         elif vision_cfg.get('desktopVision'):
             # 检查唤醒词
@@ -2395,7 +2397,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         from py.cli_tool import claude_code_tool,qwen_code_tool,get_tools_for_mode,get_local_tools_for_mode
         from py.cdp_tool import all_cdp_tools
         from py.random_topic import random_topics_tools
-        from py.computer_use_tool import computer_use_tools
+        from py.computer_use_tool import computer_use_tools,mouse_use_tools,keyboard_use_tools,desktopVision_use_tools
 
         from py.task_tools import (
             create_subtask_tool,
@@ -2496,6 +2498,12 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                 tools.extend(get_local_tools_for_mode('yolo'))
         if settings['visionControlSettings']['enabled']:
             tools.extend(computer_use_tools)
+            if settings['visionControlSettings']['mouse']:
+                tools.extend(mouse_use_tools)
+            if settings['visionControlSettings']['keyboard']:
+                tools.extend(keyboard_use_tools)
+            if not settings['visionControlSettings']['desktopVision']:
+                tools.extend(desktopVision_use_tools)
         if settings['tools']['time']['enabled'] and settings['tools']['time']['triggerMode'] == 'afterThinking':
             tools.append(time_tool)
         if settings["tools"]["weather"]['enabled']:
@@ -3848,7 +3856,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         content_append(request.messages, 'assistant', f"<think>\n{full_reasoning}\n</think>") # 可参考的推理过程
                     
                     vision_control_enabled = settings.get('visionControlSettings', {}).get('enabled', False)
-                    if vision_control_enabled:
+                    if vision_control_enabled and (results =='[Getting screenshot]' or settings.get('visionControlSettings', {}).get('desktopVision', False)):
                         try:
                             import pyautogui
                             import asyncio
@@ -3864,7 +3872,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             request.messages.append({
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": "（系统注入）这是执行上述操作后的最新桌面截图。请根据屏幕当前状态判断上一步是否成功，并决定下一步行动。"},
+                                    {"type": "text", "text": "[System] This is the latest desktop screenshot after performing the above operation. Please determine whether the previous step was successful based on the current state of the screen and decide on the next action."},
                                     {"type": "image_url", "image_url": {"url": desktop_url}}
                                 ]
                             })
@@ -4309,7 +4317,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
     from py.cli_tool import claude_code_tool,qwen_code_tool,get_tools_for_mode,get_local_tools_for_mode
     from py.cdp_tool import all_cdp_tools
     from py.random_topic import random_topics_tools
-    from py.computer_use_tool import computer_use_tools
+    from py.computer_use_tool import computer_use_tools,mouse_use_tools,keyboard_use_tools,desktopVision_use_tools
     m0 = None
     if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != "":
         memoryId = settings["memorySettings"]["selectedMemory"]
@@ -4404,6 +4412,12 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             tools.extend(get_local_tools_for_mode('yolo'))
     if settings['visionControlSettings']['enabled']:
         tools.extend(computer_use_tools)
+        if settings['visionControlSettings']['mouse']:
+            tools.extend(mouse_use_tools)
+        if settings['visionControlSettings']['keyboard']:
+            tools.extend(keyboard_use_tools)
+        if not settings['visionControlSettings']['desktopVision']:
+            tools.extend(desktopVision_use_tools)
     if settings["tools"]["randomTopic"]['enabled']:
         tools.extend(random_topics_tools)
     if settings['tools']['time']['enabled'] and settings['tools']['time']['triggerMode'] == 'afterThinking':
@@ -5311,7 +5325,8 @@ async def execute_tool_manually(request: Request):
         keyboard_press_async,
         keyboard_hotkey_async,
         keyboard_hold_async,
-        wait_async
+        wait_async,
+        screenshot_async
     )
 
     # ==================== 2. 定义工具映射表 ====================
@@ -5416,7 +5431,8 @@ async def execute_tool_manually(request: Request):
         "keyboard_press_async":keyboard_press_async,
         "keyboard_hotkey_async":keyboard_hotkey_async,
         "keyboard_hold_async":keyboard_hold_async,
-        "wait_async":wait_async
+        "wait_async":wait_async,
+        "screenshot_async":screenshot_async
     }
     
 

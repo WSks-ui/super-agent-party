@@ -183,7 +183,10 @@
       "cc_path": ""
     },
     "visionControlSettings":{
-      "enabled": false
+      "enabled": false,
+      "mouse":true,
+      "keyboard":true,
+      "desktopVision": true
     },
     "ccSettings": {
       "enabled":true,
@@ -366,6 +369,7 @@
       {"name": "uiButton", "enabled": true},
       {"name": "codeButton", "enabled": false},
       {"name": "CLIButton", "enabled": false},
+      {"name": "visionControl", "enabled": false},
       {"name": "stickerButton", "enabled": false},
       {"name": "haButton", "enabled": false},
       {"name": "chromeButton", "enabled": false},
@@ -398,6 +402,7 @@
       {"name": "uiButton", "enabled": false},
       {"name": "codeButton", "enabled": false},
       {"name": "CLIButton", "enabled": false},
+      {"name": "visionControl", "enabled": false},
       {"name": "stickerButton", "enabled": false},
       {"name": "haButton", "enabled": false},
       {"name": "chromeButton", "enabled": false},

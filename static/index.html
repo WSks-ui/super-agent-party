@@ -1164,6 +1164,18 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </el-button>
                     </el-tooltip>
 
+                    <el-tooltip :content="t('visionControl')" placement="top">
+                      <el-button
+                        :disabled="!isElectron"
+                        @click="visionControlSettings.enabled = !visionControlSettings.enabled; autoSaveSettings()"
+                        class="icon-btn web-search-btn"
+                        :type="visionControlSettings.enabled ? 'primary' : 'default'"
+                        v-if="MoreButtonDict.find(b => b.name === 'visionControl')?.enabled&&!isCapsuleMode"
+                        circle>
+                        <i class="fa-solid fa-arrow-pointer"></i>
+                      </el-button>
+                    </el-tooltip>
+
                     <el-tooltip :content="t('sticker')" placement="top">
                       <el-button
                         @click="showStickerPacksDialog = true"
@@ -8114,7 +8126,7 @@ function updateElement(el, rawMarkdown, formatFn) {
               </div>
               <!-- 视觉控制界面 -->
               <div v-show="subMenu === 'visionControl'" class="page">
-                <el-form :model="visionControlSettings" class="settings-form"  label-position="top">
+                <el-form v-if="isElectron" :model="visionControlSettings" class="settings-form"  label-position="top">
                   <div class="tool-item">
                     <div class="tool-header">
                       <div class="header-left">
@@ -8127,8 +8139,23 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </div>
                       <el-switch v-model="visionControlSettings.enabled" @click.stop @change="autoSaveSettings"/>
                     </div>
+                    <div class="tool-content">
+                      <el-form-item :label="t('mouseControl')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.mouse" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item :label="t('keyboardControl')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.keyboard" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item :label="t('realtimeDesktopVision')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.desktopVision" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                    </div>
+
                   </div>
                 </el-form> 
+                <div v-else >
+                  <el-empty :description="t('webNotSupported')" />
+                </div>
               </div>
 
               <!-- 终端工具界面 -->

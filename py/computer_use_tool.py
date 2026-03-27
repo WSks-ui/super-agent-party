@@ -133,6 +133,11 @@ async def wait_async(seconds: float) -> str:
     await asyncio.sleep(seconds)
     return f"已等待 {seconds} 秒。"
 
+async def screenshot_async() -> str:
+    """获取截图"""
+    await asyncio.sleep(0.2)
+    return "[Getting screenshot]"
+
 # ================= 对应的 OpenAI 工具 Schema 定义 =================
 
 mouse_move_tool = {
@@ -314,16 +319,35 @@ mouse_hold_tool = {
     }
 }
 
+screenshot_async_tool = {
+    "type": "function",
+    "function": {
+        "name": "screenshot_async",
+        "description": "截取当前桌面的图像"
+    }
+}
+
 # 导出所有工具到列表，方便主程序统一挂载
 computer_use_tools = [
+    wait_tool
+    
+]
+
+desktopVision_use_tools = [
+    screenshot_async_tool
+]
+
+mouse_use_tools = [
     mouse_move_tool,
     mouse_click_tool,
     mouse_drag_tool,
     mouse_scroll_tool,
     mouse_hold_tool,
+]
+
+keyboard_use_tools = [
     keyboard_type_tool,
     keyboard_press_tool,
     keyboard_hotkey_tool,
     keyboard_hold_tool,
-    wait_tool
 ]

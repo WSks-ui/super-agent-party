@@ -362,6 +362,9 @@ let vue_data = {
     },
     visionControlSettings:{
       enabled: false,
+      mouse:true,
+      keyboard:true,
+      desktopVision: true,
     },
     ccSettings: {
       enabled: false,
@@ -788,6 +791,7 @@ let vue_data = {
       {"name": "uiButton", "enabled": true},
       {"name": "codeButton", "enabled": false},
       {"name": "CLIButton", "enabled": false},
+      {"name": "visionControl", "enabled": false},
       {"name": "stickerButton", "enabled": false},
       {"name": "haButton", "enabled": false},
       {"name": "chromeButton", "enabled": false},
@@ -821,6 +825,7 @@ let vue_data = {
       {"name": "uiButton", "enabled": true},
       {"name": "codeButton", "enabled": false},
       {"name": "CLIButton", "enabled": false},
+      {"name": "visionControl", "enabled": false},
       {"name": "stickerButton", "enabled": false},
       {"name": "haButton", "enabled": false},
       {"name": "chromeButton", "enabled": false},
@@ -854,6 +859,7 @@ let vue_data = {
       {"name": "uiButton", "enabled": false},
       {"name": "codeButton", "enabled": false},
       {"name": "CLIButton", "enabled": false},
+      {"name": "visionControl", "enabled": false},
       {"name": "stickerButton", "enabled": false},
       {"name": "haButton", "enabled": false},
       {"name": "chromeButton", "enabled": false},
