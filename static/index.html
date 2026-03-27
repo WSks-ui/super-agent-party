@@ -426,7 +426,7 @@ function updateElement(el, rawMarkdown, formatFn) {
           text
           :title="isAssistantMode ?  t('maximize'):t('assistantMode')">
           <el-icon>
-            <i :class="isAssistantMode ?  'fa-solid fa-expand' : 'fa-solid fa-wand-magic-sparkles'"></i>
+            <i :class="isAssistantMode ?  'fa-solid fa-expand' : 'fa-solid fa-mobile-screen'"></i>
           </el-icon>
         </el-button>
         <el-button v-if="!isMac&&!isMobile" @click="minimizeWindow" class="top-bar-btn" text :title="t('minimize')">
@@ -768,16 +768,35 @@ function updateElement(el, rawMarkdown, formatFn) {
                     <!-- 消息气泡主体 -->
                     <div class="message-content" v-if="!allBriefly||message.role !== 'system'||index === 0" :class="{ typing: message.role === 'assistant' && isTyping && index === messages.length - 1 }">
                       
-                      <!-- User -->
+                      <!-- User 消息主体 -->
                       <div v-if="message.role === 'user'" class="user-content" data-mjx-disabled="true">
-                        <div v-html="message.content" class = "user-msg"></div>
-                        <div v-if="message.fileLinks?.length" class="file-links">
-                          <a v-for="(link, linkIndex) in message.fileLinks" :key="linkIndex" :href="formatFileUrl(link.path)" target="_blank" class="file-link">@{{ link.name }}</a>
-                        </div>
-                        <div v-if="message.imageLinks?.length" class="image-links">
-                          <img v-for="(link, linkIndex) in message.imageLinks" :key="linkIndex" :src="formatFileUrl(link.path)" class="image-link"/>
-                        </div>
+                          <div v-html="message.content" class="user-msg"></div>
+
+                          <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
+                          <div class="message-attachments-display user-msg-attachments" 
+                              v-if="message.fileLinks?.length || message.imageLinks?.length">
+                            
+
+                              <!-- 2. 图片附件 (统一方块) -->
+                              <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">
+                                  <div class="preview-image-box">
+                                      <!-- 图片不需要反色，保持原样 -->
+                                      <img :src="formatFileUrl(img.path)" />
+                                  </div>
+                              </div>
+
+                              <!-- 3. 文件附件 (反色版) -->
+                              <div v-for="(file, fileIdx) in message.fileLinks" :key="'file-'+fileIdx" class="attachment-item-display file-item">
+                                  <div class="file-card-box">
+                                      <div class="file-icon"><i class="fa-solid fa-file-lines"></i></div>
+                                      <div class="file-info">
+                                          <span class="file-name" :title="file.name">{{ file.name }}</span>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
                       </div>
+
                       
                       <!-- Assistant -->
                       <div v-else-if="message.role === 'assistant'" class="markdown-body">
@@ -1142,6 +1161,18 @@ function updateElement(el, rawMarkdown, formatFn) {
                         v-if="MoreButtonDict.find(b => b.name === 'CLIButton')?.enabled&&!isCapsuleMode"
                         circle>
                         <i class="fa-solid fa-computer"></i>
+                      </el-button>
+                    </el-tooltip>
+
+                    <el-tooltip :content="t('visionControl')" placement="top">
+                      <el-button
+                        :disabled="!isElectron"
+                        @click="visionControlSettings.enabled = !visionControlSettings.enabled; autoSaveSettings()"
+                        class="icon-btn web-search-btn"
+                        :type="visionControlSettings.enabled ? 'primary' : 'default'"
+                        v-if="MoreButtonDict.find(b => b.name === 'visionControl')?.enabled&&!isCapsuleMode"
+                        circle>
+                        <i class="fa-solid fa-arrow-pointer"></i>
                       </el-button>
                     </el-tooltip>
 
@@ -8093,6 +8124,40 @@ function updateElement(el, rawMarkdown, formatFn) {
                   </div>
                 </el-form> 
               </div>
+              <!-- 视觉控制界面 -->
+              <div v-show="subMenu === 'visionControl'" class="page">
+                <el-form v-if="isElectron" :model="visionControlSettings" class="settings-form"  label-position="top">
+                  <div class="tool-item">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>
+                          <el-icon>
+                            <i class="fa-solid fa-arrow-pointer"></i>
+                          </el-icon>
+                          {{ t('visionControl') }}
+                        </span>
+                      </div>
+                      <el-switch v-model="visionControlSettings.enabled" @click.stop @change="autoSaveSettings"/>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item :label="t('mouseControl')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.mouse" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item :label="t('keyboardControl')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.keyboard" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item :label="t('realtimeDesktopVision')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.desktopVision" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                    </div>
+
+                  </div>
+                </el-form> 
+                <div v-else >
+                  <el-empty :description="t('webNotSupported')" />
+                </div>
+              </div>
+
               <!-- 终端工具界面 -->
               <div v-show="subMenu === 'CLI'" class="page">
               <el-tabs v-model="activeCLITab">
@@ -14973,16 +15038,34 @@ function updateElement(el, rawMarkdown, formatFn) {
                     <!-- 消息气泡主体 -->
                     <div class="message-content" v-if="!allBriefly||message.role !== 'system'||index === 0" :class="{ typing: message.role === 'assistant' && isTyping && index === messages.length - 1 }">
                       
-                      <!-- User -->
-                      <div v-if="message.role === 'user'" class="user-content" data-mjx-disabled="true">
-                        <div v-html="message.content" class = "user-msg"></div>
-                        <div v-if="message.fileLinks?.length" class="file-links">
-                          <a v-for="(link, linkIndex) in message.fileLinks" :key="linkIndex" :href="formatFileUrl(link.path)" target="_blank" class="file-link">@{{ link.name }}</a>
+                    <!-- User 消息主体 -->
+                    <div v-if="message.role === 'user'" class="user-content" data-mjx-disabled="true">
+                        <div v-html="message.content" class="user-msg"></div>
+
+                        <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
+                        <div class="message-attachments-display user-msg-attachments" 
+                            v-if="message.fileLinks?.length || message.imageLinks?.length">
+                            
+
+                            <!-- 2. 图片附件 (统一方块) -->
+                            <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">
+                                <div class="preview-image-box">
+                                    <!-- 图片不需要反色，保持原样 -->
+                                    <img :src="formatFileUrl(img.path)" />
+                                </div>
+                            </div>
+
+                            <!-- 3. 文件附件 (反色版) -->
+                            <div v-for="(file, fileIdx) in message.fileLinks" :key="'file-'+fileIdx" class="attachment-item-display file-item">
+                                <div class="file-card-box">
+                                    <div class="file-icon"><i class="fa-solid fa-file-lines"></i></div>
+                                    <div class="file-info">
+                                        <span class="file-name" :title="file.name">{{ file.name }}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div v-if="message.imageLinks?.length" class="image-links">
-                          <img v-for="(link, linkIndex) in message.imageLinks" :key="linkIndex" :src="formatFileUrl(link.path)" class="image-link"/>
-                        </div>
-                      </div>
+                    </div>
                       
                       <!-- Assistant -->
                       <div v-else-if="message.role === 'assistant'" class="markdown-body">

@@ -950,6 +950,20 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         cancel_subtask,
         finish_task
     )
+    
+    from py.computer_use_tool import (
+        mouse_move_async,
+        mouse_click_async,
+        mouse_drag_async,
+        mouse_scroll_async,
+        mouse_hold_async,
+        keyboard_type_async,
+        keyboard_press_async,
+        keyboard_hotkey_async,
+        keyboard_hold_async,
+        wait_async,
+        screenshot_async
+    )
 
     # ==================== 2. 定义工具映射表 ====================
     _TOOL_HOOKS = {
@@ -1042,6 +1056,19 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         "query_task_progress": query_task_progress,
         "cancel_subtask": cancel_subtask,
         "finish_task":finish_task,
+
+        # 鼠标键盘控制
+        "mouse_move_async":mouse_move_async,
+        "mouse_click_async":mouse_click_async,
+        "mouse_drag_async":mouse_drag_async,
+        "mouse_scroll_async":mouse_scroll_async,
+        "mouse_hold_async":mouse_hold_async,
+        "keyboard_type_async":keyboard_type_async,
+        "keyboard_press_async":keyboard_press_async,
+        "keyboard_hotkey_async":keyboard_hotkey_async,
+        "keyboard_hold_async":keyboard_hold_async,
+        "wait_async":wait_async,
+        "screenshot_async":screenshot_async
     }
     
     # ==================== 3. 权限拦截逻辑 (Human-in-the-loop) ====================
@@ -1501,7 +1528,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
     global HA_client, ChromeMCP_client, sql_client
     
     if request.messages and request.messages[0]['role'] == 'system' and request.messages[0]['content'] != '':
-        basic_message = "你必须使用用户使用的语言与之交流，例如：当用户使用中文时，你也必须尽可能地使用中文！当用户使用英文时，你也必须尽可能地使用英文！以此类推！"
+        basic_message = " "
         request.messages[0]['content'] += basic_message
 
     cli_settings = settings.get("CLISettings", {})
@@ -2169,6 +2196,61 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         if len(request.messages) > 2:
             DRS_STAGE = 2
             
+        vision_cfg = settings.get('vision', {})
+        vision_control_enabled = settings.get('visionControlSettings', {}).get('enabled', False)
+        user_prompt = request.messages[-1].get('content') or ""
+        
+        # 1. 只要开启了计算机控制 或者 符合桌面视觉唤醒词条件，就进行初始截图
+        should_capture = False
+        if vision_control_enabled and settings.get('visionControlSettings', {}).get('desktopVision', False):
+            should_capture = True
+        elif vision_cfg.get('desktopVision'):
+            # 检查唤醒词
+            if vision_cfg.get('enableWakeWord'):
+                wake_words = [w.strip() for w in vision_cfg.get('wakeWord', "").split('\n') if w.strip()]
+                if any(word in user_prompt for word in wake_words):
+                    should_capture = True
+            else:
+                # 未开启唤醒词则默认每次捕获（或根据需求调整）
+                should_capture = True
+        
+        if should_capture:
+            try:
+                import pyautogui
+                import asyncio
+                
+                print("正在执行后端初始桌面截图...")
+                # 捕获屏幕 (改用异步方法，防止阻塞并发请求)
+                screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                
+                # 生成唯一文件名并保存到缓存目录
+                desktop_img_name = f"desktop_{uuid.uuid4().hex}.png"
+                desktop_img_path = os.path.join(UPLOAD_FILES_DIR, desktop_img_name)
+                await asyncio.to_thread(screenshot.save, desktop_img_path)
+                
+                # 构造一个类似前端传来的 fileLink 结构，或者直接注入到 images 列表
+                desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
+                
+                # 将截图注入到当前消息中，让视觉模型能看到
+                # 我们直接修改 request.messages 的最后一条用户消息，添加图片引用
+                current_user_msg = request.messages[-1]
+                if isinstance(current_user_msg['content'], str):
+                    # 如果原本是纯文本，转为多模态格式
+                    original_text = current_user_msg['content']
+                    current_user_msg['content'] = [
+                        {"type": "text", "text": original_text},
+                        {"type": "image_url", "image_url": {"url": desktop_url}}
+                    ]
+                elif isinstance(current_user_msg['content'], list):
+                    # 如果已经是列表，直接 append
+                    current_user_msg['content'].append(
+                        {"type": "image_url", "image_url": {"url": desktop_url}}
+                    )
+                
+                print(f"桌面截图已自动注入消息: {desktop_url}")
+                
+            except Exception as e:
+                print(f"后端桌面截图失败: {e}")
         max_rounds = settings.get("max_rounds", 0)
 
         if max_rounds > 0 and request.messages:
@@ -2315,6 +2397,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         from py.cli_tool import claude_code_tool,qwen_code_tool,get_tools_for_mode,get_local_tools_for_mode
         from py.cdp_tool import all_cdp_tools
         from py.random_topic import random_topics_tools
+        from py.computer_use_tool import computer_use_tools,mouse_use_tools,keyboard_use_tools,desktopVision_use_tools
 
         from py.task_tools import (
             create_subtask_tool,
@@ -2413,6 +2496,14 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                 tools.extend(get_tools_for_mode('yolo'))
             elif settings['CLISettings']['engine'] == 'local':
                 tools.extend(get_local_tools_for_mode('yolo'))
+        if settings['visionControlSettings']['enabled']:
+            tools.extend(computer_use_tools)
+            if settings['visionControlSettings']['mouse']:
+                tools.extend(mouse_use_tools)
+            if settings['visionControlSettings']['keyboard']:
+                tools.extend(keyboard_use_tools)
+            if not settings['visionControlSettings']['desktopVision']:
+                tools.extend(desktopVision_use_tools)
         if settings['tools']['time']['enabled'] and settings['tools']['time']['triggerMode'] == 'afterThinking':
             tools.append(time_tool)
         if settings["tools"]["weather"]['enabled']:
@@ -2631,7 +2722,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
             extra_params = {item['name']: item['value'] for item in extra_params}
         else:
             extra_params = {}
-        async def stream_generator(user_prompt,DRS_STAGE,tools):
+        async def stream_generator(user_prompt,DRS_STAGE,tools,images):
             # ---------- 统一 SSE 封装 ----------
             def make_sse(tool_data: dict) -> str:
                 chunk = {
@@ -3763,6 +3854,33 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
 
                         # 在推理结束后添加完整推理内容到消息
                         content_append(request.messages, 'assistant', f"<think>\n{full_reasoning}\n</think>") # 可参考的推理过程
+                    
+                    vision_control_enabled = settings.get('visionControlSettings', {}).get('enabled', False)
+                    if vision_control_enabled and (results =='[Getting screenshot]' or settings.get('visionControlSettings', {}).get('desktopVision', False)):
+                        try:
+                            import pyautogui
+                            import asyncio
+                            print("正在执行循环中的桌面截图...")
+                            screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                            desktop_img_name = f"desktop_loop_{uuid.uuid4().hex}.png"
+                            desktop_img_path = os.path.join(UPLOAD_FILES_DIR, desktop_img_name)
+                            await asyncio.to_thread(screenshot.save, desktop_img_path)
+                            desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
+                            
+                            # 仅将新截图注入到主模型对应的 request.messages
+                            # 以全新的 user 角色追加，专门用于提供视觉反馈
+                            request.messages.append({
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": "[System] This is the latest desktop screenshot after performing the above operation. Please determine whether the previous step was successful based on the current state of the screen and decide on the next action."},
+                                    {"type": "image_url", "image_url": {"url": desktop_url}}
+                                ]
+                            })
+                            print(f"循环桌面截图已自动注入主模型消息: {desktop_url}")
+                        except Exception as e:
+                            print(f"循环桌面截图失败: {e}")
+                        images = await images_in_messages(request.messages,fastapi_base_url)
+                        request.messages = await message_without_images(request.messages)
                     msg = await images_add_in_messages(request.messages, images,settings)
                     if tools:
                         response = await client.chat.completions.create(
@@ -4101,7 +4219,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                 return
         
         return StreamingResponse(
-            stream_generator(user_prompt, DRS_STAGE, tools),
+            stream_generator(user_prompt, DRS_STAGE, tools, images),
             media_type="text/event-stream",
             headers={
                 "Content-Type": "text/event-stream",
@@ -4198,6 +4316,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
     from py.autoBehavior import auto_behavior_tool
     from py.cli_tool import claude_code_tool,qwen_code_tool,get_tools_for_mode,get_local_tools_for_mode
     from py.cdp_tool import all_cdp_tools
+    from py.random_topic import random_topics_tools
+    from py.computer_use_tool import computer_use_tools,mouse_use_tools,keyboard_use_tools,desktopVision_use_tools
     m0 = None
     if settings["memorySettings"]["is_memory"] and settings["memorySettings"]["selectedMemory"] and settings["memorySettings"]["selectedMemory"] != "":
         memoryId = settings["memorySettings"]["selectedMemory"]
@@ -4290,6 +4410,16 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             tools.extend(get_tools_for_mode('yolo'))
         elif settings['CLISettings']['engine'] == 'local':
             tools.extend(get_local_tools_for_mode('yolo'))
+    if settings['visionControlSettings']['enabled']:
+        tools.extend(computer_use_tools)
+        if settings['visionControlSettings']['mouse']:
+            tools.extend(mouse_use_tools)
+        if settings['visionControlSettings']['keyboard']:
+            tools.extend(keyboard_use_tools)
+        if not settings['visionControlSettings']['desktopVision']:
+            tools.extend(desktopVision_use_tools)
+    if settings["tools"]["randomTopic"]['enabled']:
+        tools.extend(random_topics_tools)
     if settings['tools']['time']['enabled'] and settings['tools']['time']['triggerMode'] == 'afterThinking':
         tools.append(time_tool)
     if settings["tools"]["weather"]['enabled']:
@@ -5184,6 +5314,20 @@ async def execute_tool_manually(request: Request):
         cancel_subtask,
         finish_task
     )
+    
+    from py.computer_use_tool import (
+        mouse_move_async,
+        mouse_click_async,
+        mouse_drag_async,
+        mouse_scroll_async,
+        mouse_hold_async,
+        keyboard_type_async,
+        keyboard_press_async,
+        keyboard_hotkey_async,
+        keyboard_hold_async,
+        wait_async,
+        screenshot_async
+    )
 
     # ==================== 2. 定义工具映射表 ====================
     _TOOL_HOOKS = {
@@ -5276,6 +5420,19 @@ async def execute_tool_manually(request: Request):
         "query_task_progress": query_task_progress,
         "cancel_subtask": cancel_subtask,
         "finish_task":finish_task,
+
+        # 鼠标键盘控制
+        "mouse_move_async":mouse_move_async,
+        "mouse_click_async":mouse_click_async,
+        "mouse_drag_async":mouse_drag_async,
+        "mouse_scroll_async":mouse_scroll_async,
+        "mouse_hold_async":mouse_hold_async,
+        "keyboard_type_async":keyboard_type_async,
+        "keyboard_press_async":keyboard_press_async,
+        "keyboard_hotkey_async":keyboard_hotkey_async,
+        "keyboard_hold_async":keyboard_hold_async,
+        "wait_async":wait_async,
+        "screenshot_async":screenshot_async
     }
     
 

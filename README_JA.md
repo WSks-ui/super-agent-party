@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/English-Readme-0057D2?style=for-the-badge&logo=markdown"/>
   </a>
   <a href="./README_JA.md">
-    <img src="https://img.shields.io/badge/日本語-README-E60012?style=for-the-badge&logo=markdown"/>
+    <img src="https://img.shields.io/badge/日本語-Readme-FF69B4?style=for-the-badge&logo=markdown"/>
   </a>
 </div>
 
@@ -169,6 +169,7 @@
 | AI RSS reader      | heshengtao  | Super Agent Party用のAI RSSリーダー拡張機能      | https://github.com/heshengtao/sap-rss  |
 | Remote      | heshengtao  | Super Agent Partyをワンクリックでインターネットに公開             | https://github.com/heshengtao/sap-remote  |
 | Code Server      | heshengtao  | Super Agent Party用のIDE拡張機能          | https://github.com/heshengtao/sap-code-server  |
+| CLI      | heshengtao  |  Super Agent Party用CLI拡張機能          | https://github.com/heshengtao/sap-cli  |
 
 ## ハードウェア要件
 

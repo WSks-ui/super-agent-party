@@ -1366,6 +1366,7 @@ let vue_methods = {
           this.webSearchSettings = data.data.webSearch || this.webSearchSettings;
           this.codeSettings = data.data.codeSettings || this.codeSettings;
           this.CLISettings = data.data.CLISettings || this.CLISettings;
+          this.visionControlSettings = data.data.visionControlSettings || this.visionControlSettings;
           this.ccSettings = data.data.ccSettings || this.ccSettings;
           this.qcSettings = data.data.qcSettings || this.qcSettings;
           this.dsSettings = data.data.dsSettings || this.dsSettings;
@@ -1432,6 +1433,7 @@ let vue_methods = {
           this.webSearchSettings = data.data.webSearch || this.webSearchSettings;
           this.codeSettings = data.data.codeSettings || this.codeSettings;
           this.CLISettings = data.data.CLISettings || this.CLISettings;
+          this.visionControlSettings = data.data.visionControlSettings || this.visionControlSettings;
           this.ccSettings = data.data.ccSettings || this.ccSettings;
           this.qcSettings = data.data.qcSettings || this.qcSettings;
           this.dsSettings = data.data.dsSettings || this.dsSettings;
@@ -1765,34 +1767,17 @@ let vue_methods = {
             this.sendTTSStatusToVRM('ttsStarted', {});
         }
 
-        // --- 桌面截图逻辑 (Electron) ---
-        if (vue_data.isElectron && this.visionSettings?.desktopVision) {
-            if (this.visionSettings.enableWakeWord && this.visionSettings.wakeWord) {
-                const wakeWords = this.visionSettings.wakeWord.split('\n');
-                if (wakeWords.some(word => this.userInput.includes(word))) {
-                    try {
-                    const pngBuffer = await window.electronAPI.captureDesktop()
-                    const blob = new Blob([pngBuffer], { type: 'image/png' })
-                    const file = new File([blob], `desktop_${Date.now()}.png`, { type: 'image/png' })
-                    this.images.push({ file, name: file.name, path: '' })
-                    } catch (e) {
-                    console.error('桌面截图失败:', e)
-                    showNotification(this.t('desktop_capture_failed'), 'error')
-                    }
-                }
-            }
-            else {
-                try {
-                    const pngBuffer = await window.electronAPI.captureDesktop()
-                    const blob = new Blob([pngBuffer], { type: 'image/png' })
-                    const file = new File([blob], `desktop_${Date.now()}.png`, { type: 'image/png' })
-                    this.images.push({ file, name: file.name, path: '' })
-                } catch (e) {
-                    console.error('桌面截图失败:', e)
-                    showNotification(this.t('desktop_capture_failed'), 'error')
-                }
-            }
-        }
+      let captureFlag = false;
+      if (this.isElectron && this.visionSettings?.desktopVision) {
+          if (this.visionSettings.enableWakeWord && this.visionSettings.wakeWord) {
+              const wakeWords = this.visionSettings.wakeWord.split('\n');
+              if (wakeWords.some(word => this.userInput.includes(word.trim()))) {
+                  captureFlag = true;
+              }
+          } else {
+              captureFlag = true;
+          }
+      }
 
         // --- 文件上传处理 ---
         const userInput = this.userInput.trim();
@@ -1846,6 +1831,7 @@ let vue_methods = {
             fileLinks: fileLinks,
             fileLinks_content: fileLinks_content,
             imageLinks: imageLinks || [],
+            hasDesktopVision: captureFlag, // ✨ 新增标记：告诉 UI 这条消息触发了后端截图
             agentName: this.memorySettings.userName || 'User' 
         });
 
@@ -2130,6 +2116,16 @@ let vue_methods = {
                         if (currentMsg.content === '' && !isResume) { // 只有非 Resume 或者是新内容开始时才算延迟
                             this.stopTimer(); 
                             currentMsg.first_token_latency = this.elapsedTime;
+                        }
+
+                        // ... (后续 reasoning, audio, token 处理保持原样)
+                        if (delta.reasoning_content) {
+                            if (!this.isThinkOpen) {
+                                currentMsg.content += '<div class="highlight-block-reasoning">';
+                                this.isThinkOpen = true;
+                            }
+                            currentMsg.content += delta.reasoning_content.replace(/\n/g, '<br>');
+                            this.scrollToBottom();
                         }
 
                         // 1. 处理文本
@@ -2447,15 +2443,6 @@ let vue_methods = {
                                     }
                                 }
                             }
-                            this.scrollToBottom();
-                        }
-                        // ... (后续 reasoning, audio, token 处理保持原样)
-                        if (delta.reasoning_content) {
-                            if (!this.isThinkOpen) {
-                                currentMsg.content += '<div class="highlight-block-reasoning">';
-                                this.isThinkOpen = true;
-                            }
-                            currentMsg.content += delta.reasoning_content.replace(/\n/g, '<br>');
                             this.scrollToBottom();
                         }
 
@@ -3043,6 +3030,7 @@ let vue_methods = {
           webSearch: this.webSearchSettings, 
           codeSettings: this.codeSettings,
           CLISettings: this.CLISettings,
+          visionControlSettings: this.visionControlSettings,
           ccSettings: this.ccSettings,
           qcSettings: this.qcSettings,
           dsSettings: this.dsSettings,
@@ -15987,7 +15975,7 @@ closeTaskCenter() {
       
       const res = await window.electronAPI.deleteWorkspaceFile(data.path);
       if (res.success) {
-        this.$message?.success(this.t('deleteSuccess') || '删除成功');
+        showNotification(this.t('deleteSuccess'),'success');
         // 从前端界面中动态移除该节点，避免重新读取整个目录树
         const parent = node.parent;
         const children = parent.data.children || parent.childNodes;
@@ -15995,8 +15983,9 @@ closeTaskCenter() {
         if (index !== -1) {
           children.splice(index, 1);
         }
+        
       } else {
-        this.$message?.error((this.t('deleteFailed') || '删除失败: ') + res.error);
+        showNotification(this.t('deleteFailed'),'error');
       }
     } catch (error) {
       // 用户点击了取消，不做任何处理
