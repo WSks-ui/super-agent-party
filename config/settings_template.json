@@ -254,6 +254,7 @@
       "is_sandbox": false
     },
     "allBriefly":false,
+    "isForceScrollToBottom":false,
     "behaviorSettings": {
       "enabled": false,
       "behaviorList":[]

@@ -1222,7 +1222,7 @@ let vue_methods = {
     scrollToBottom() {
       this.$nextTick(() => {
         const container = this.$refs.messagesContainer;
-        if (this.isElemNearBottom(container)) {
+        if (this.isElemNearBottom(container) || this.isForceScrollToBottom) {
           container.scrollTop = container.scrollHeight;
         }
       });
@@ -1234,7 +1234,7 @@ let vue_methods = {
     scrollPanelToBottom() {
       this.$nextTick(() => {
         const panel = this.$refs.messagesPanel;
-        if (this.isElemNearBottom(panel)) {
+        if (this.isElemNearBottom(panel) || this.isForceScrollToBottom) {
           panel.scrollTop = panel.scrollHeight;
         }
       });
@@ -1242,7 +1242,7 @@ let vue_methods = {
     browserPanelToBottom() {
       this.$nextTick(() => {
         const panel = this.$refs.browserMessagesContainer;
-        if (this.isElemNearBottom(panel)) {
+        if (this.isElemNearBottom(panel) || this.isForceScrollToBottom) {
           panel.scrollTop = panel.scrollHeight;
         }
       });
@@ -1422,6 +1422,7 @@ let vue_methods = {
           this.slackBotConfig = data.data.slackBotConfig || this.slackBotConfig;
           this.targetLangSelected = data.data.targetLangSelected || this.targetLangSelected;
           this.allBriefly = data.data.allBriefly || this.allBriefly;
+          this.isForceScrollToBottom = data.data.isForceScrollToBottom || this.isForceScrollToBottom;
           this.BotConfig = data.data.BotConfig || this.BotConfig;
           this.liveConfig = data.data.liveConfig || this.liveConfig;
           this.WXBotConfig = data.data.WXBotConfig || this.WXBotConfig;
@@ -3018,6 +3019,7 @@ let vue_methods = {
           telegramBotConfig: this.telegramBotConfig,
           targetLangSelected: this.targetLangSelected,
           allBriefly: this.allBriefly,
+          isForceScrollToBottom: this.isForceScrollToBottom,
           BotConfig: this.BotConfig,
           liveConfig: this.liveConfig,
           WXBotConfig: this.WXBotConfig,

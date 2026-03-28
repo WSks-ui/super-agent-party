@@ -774,6 +774,7 @@ let vue_data = {
     isFixedWindow: false,
     MoreButtonDict: [
       {"name": "brieflyButton", "enabled": true},
+      {"name": "forceScrollButton", "enabled": true},
       {"name": "expandButton", "enabled": true},
       {"name": "fileButton", "enabled": true},
       {"name": "fastResponseButton", "enabled": true},
@@ -808,6 +809,7 @@ let vue_data = {
     ],
     largeMoreButtonDict:[
       {"name": "brieflyButton", "enabled": true},
+      {"name": "forceScrollButton", "enabled": true},
       {"name": "expandButton", "enabled": true},
       {"name": "fileButton", "enabled": true},
       {"name": "fastResponseButton", "enabled": true},
@@ -842,6 +844,7 @@ let vue_data = {
     ],
     smallMoreButtonDict:[
       {"name": "brieflyButton", "enabled": false},
+      {"name": "forceScrollButton", "enabled": false},
       {"name": "expandButton", "enabled": false},
       {"name": "fileButton", "enabled": false},
       {"name": "fastResponseButton", "enabled": false},
@@ -2086,4 +2089,5 @@ main();`,
     showAffectionDataDialog: false,
     isEditingAffection: false,
     currentAffectionForm: { userName: '' },
+    isForceScrollToBottom: false,
 };

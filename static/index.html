@@ -975,6 +975,17 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </el-button>
                     </el-tooltip>
 
+                    <el-tooltip :content="t('forceScrollButton')" placement="top">
+                      <el-button
+                        @click="isForceScrollToBottom = !isForceScrollToBottom; autoSaveSettings()"
+                        class="icon-btn history-btn"
+                        v-if="MoreButtonDict.find(b => b.name === 'forceScrollButton')?.enabled&&!isCapsuleMode"
+                        :type="isForceScrollToBottom ? 'primary' : 'default'"
+                        circle>
+                        <i class="fa-solid fa-scroll"></i>
+                      </el-button>
+                    </el-tooltip>
+
                     <el-tooltip :content="isInputExpanded ? t('collapseInput') : t('expandInput')" placement="top">
                         <el-button 
                             @click="toggleInputExpand"
