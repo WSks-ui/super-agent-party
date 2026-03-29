@@ -71,19 +71,30 @@
 
 ⭐ Note! Choose to install only for the current user during installation, otherwise, administrator privileges will be required to start.The operating system must be **Windows 10/11, Windows Server 2025**, or a later version!
 
-### macOS portable package (Currently only M chips are supported, developer-oriented, no-install source version, one-click sync to latest repo, no need to wait for desktop build)
+### MacOS Integrated Package (Currently only supports M chips, no-install source code version, supports one-click sync to the latest repository version, no need to wait for desktop version packaging)
+> **Suitable for developers/advanced users**: No-install source code version, supports one-click sync to the latest repository version, no need to wait for desktop version packaging.
 
-  👉 [Click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.9/super-agent-party-mac-v0.3.9.7z)
-  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/v0.3.9/super-agent-party-mac-v0.3.9.7z)
+👉 [International users click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.9/super-agent-party-mac-v0.3.9.7z)  
+👉 [Chinese users click to download](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/v0.3.9/super-agent-party-mac-v0.3.9.7z)
 
-⭐ Note! You can update the software in Terminal with `one-click update(update).sh` or launch it with `one-click start(start).sh`. Remember to grant permissions before use!
+#### 🚀 Usage Steps
 
-  ```shell
-  chmod +x 一键更新(update).sh
-  ./一键更新(update).sh
-  chmod +x 一键启动(start).sh
-  ./一键启动(start).sh
-  ```
+**1. Remove Network Download Quarantine (Important)**
+After downloading and extracting, open Terminal, enter the following command (note there is a space at the end), then drag the **extracted folder** into the Terminal window and press Enter:
+```shell
+sudo xattr -rd com.apple.quarantine 
+```
+*(Note: The `-rd` parameter recursively removes the quarantine attributes for all components within the folder; otherwise, the Python environment may not function properly.)*
+
+**2. Grant Script Execution Permissions**
+Navigate to the folder in Terminal and execute:
+```shell
+chmod +x 一键更新(update).sh 一键启动(start).sh
+```
+
+**3. Run the Software**
+- **First use/Update:** It is recommended to first execute `./一键更新(update).sh` to ensure dependencies are synced to the latest.
+- **Daily startup:** Directly execute `./一键启动(start).sh`.
 
 ### MacOS Desktop Installation (Currently only M chips are supported.)
 
