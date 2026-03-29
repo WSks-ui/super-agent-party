@@ -4257,22 +4257,42 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                     except Exception as e:
                         print(f"解析好感度标签出错: {e}")
                 if m0 and not request.is_sub_agent:
-                    messages=f"用户说：{user_prompt}\n\n---\n\n你说：{full_content}"
-                    executor = ThreadPoolExecutor()
-                    infer = cur_memory.get('infer') or False
-                    async def add_async():
-                        loop = asyncio.get_event_loop()
-                        # 绑定 user_id 关键字参数
-                        metadata = {
-                            "timetamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-                        func = partial(m0.add, user_id=memoryId,metadata=metadata,infer=infer)
-                        # 传递 messages 作为位置参数
-                        await loop.run_in_executor(executor, func, messages)
-                        print("知识库更新完成")
-
-                    asyncio.create_task(add_async())
-                    print("知识库更新任务已提交")
+                    print("记忆更新任务开始提交")
+                    messages = f"用户说：{user_prompt}\n\n---\n\n你说：{full_content}"
+                    infer = cur_memory.get('infer', False) or False
+                    
+                    def run_async_task():
+                        import asyncio  # ← 在这里导入！
+                        import traceback
+                        
+                        async def add_async():
+                            loop = asyncio.get_running_loop()
+                            with ThreadPoolExecutor() as executor:
+                                metadata = {
+                                    "timetamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                }
+                                func = partial(m0.add, user_id=memoryId, metadata=metadata, infer=infer)
+                                await loop.run_in_executor(executor, func, messages)
+                                print("记忆更新完成")
+                        
+                        try:
+                            loop = asyncio.get_running_loop()
+                            task = asyncio.create_task(add_async())
+                            task.add_done_callback(
+                                lambda t: print(f"任务异常: {t.exception()}") if t.exception() else None
+                            )
+                        except RuntimeError:
+                            # 没有运行的事件循环
+                            asyncio.run(add_async())
+                        except Exception as e:
+                            print(f"run_async_task 异常: {e}")
+                            traceback.print_exc()
+                    
+                    import threading
+                    thread = threading.Thread(target=run_async_task, daemon=True)
+                    thread.start()
+                    print("记忆更新任务已提交到后台线程")
+                    
                 return
             except Exception as e:
                 logger.error(f"{request.messages}")
