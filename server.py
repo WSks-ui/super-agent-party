@@ -4249,6 +4249,13 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             )
                 logger.info(f"all msg: {request.messages}")
                 yield "data: [DONE]\n\n"
+                if settings.get('loveSettings', {}).get('enabled', False) and not request.is_sub_agent:
+                    try:
+                        from py.affection_system import extract_and_update_affection
+                        # full_content 是当前轮次 AI 的完整回复文本
+                        await extract_and_update_affection(full_content)
+                    except Exception as e:
+                        print(f"解析好感度标签出错: {e}")
                 if m0 and not request.is_sub_agent:
                     messages=f"用户说：{user_prompt}\n\n---\n\n你说：{full_content}"
                     executor = ThreadPoolExecutor()
@@ -4266,13 +4273,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
 
                     asyncio.create_task(add_async())
                     print("知识库更新任务已提交")
-                if settings.get('loveSettings', {}).get('enabled', False) and not request.is_sub_agent:
-                    try:
-                        from py.affection_system import extract_and_update_affection
-                        # full_content 是当前轮次 AI 的完整回复文本
-                        await extract_and_update_affection(full_content)
-                    except Exception as e:
-                        print(f"解析好感度标签出错: {e}")
                 return
             except Exception as e:
                 logger.error(f"{request.messages}")
