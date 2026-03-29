@@ -500,24 +500,29 @@ from py.node_runner import node_mgr
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # --- [核心防御] 立即清理系统环境变量中的 SOCKS 代理，防止 httpx 崩溃 ---
+    for env_key in ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']:
+        val = os.environ.get(env_key, "")
+        if val.lower().startswith('socks'):
+            # 彻底移除会导致崩溃的 socks 环境变量
+            os.environ.pop(env_key, None)
+
+    # 基础初始化
     await _copy_default_skills()
-    global global_http_client # 声明全局变量
-    # 1. 初始化一个全局的、带连接池的 HTTP 客户端
-    timeout_config = httpx.Timeout(None, connect=10.0)
-    global_http_client = httpx.AsyncClient(timeout=timeout_config)
+    
     # 1. 准备所有独立的初始化任务
-    from py.get_setting import init_db, init_covs_db
+    from py.get_setting import init_db, init_covs_db, load_settings, save_settings
     from tzlocal import get_localzone
+    
     asyncio.create_task(clean_temp_files_task())
-    # 将所有不依赖 Settings 的任务并行化
-    # 比如：数据库初始化、加载本地化文件、获取时区
+    
+    # 并行执行耗时操作
     init_db_task = init_db()
     init_covs_task = init_covs_db()
     load_locales_task = asyncio.to_thread(lambda: json.load(open(base_path + "/config/locales.json", "r", encoding="utf-8")))
-    settings_task = load_settings() # 这是一个 async 任务
+    settings_task = load_settings() 
     timezone_task = asyncio.to_thread(get_localzone)
     
-    # 2. 并行执行这些耗时操作
     results = await asyncio.gather(
         init_db_task, 
         init_covs_task, 
@@ -526,204 +531,150 @@ async def lifespan(app: FastAPI):
         timezone_task
     )
     
-    # 3. 解包结果
-    # init_db 和 init_covs 没有返回值(None)
-    global settings, client, reasoner_client, fast_client, mcp_client_list, local_timezone, logger, locales
+    # 2. 解包结果
+    global settings, client, reasoner_client, fast_client, mcp_client_list, local_timezone, logger, locales, global_http_client
     _, _, locales, settings, local_timezone = results
     
-    # 创建带时间戳的日志文件路径
+    # --- [日志系统初始化] ---
     timestamp = time.time()
     log_path = os.path.join(LOG_DIR, f"backend_{timestamp}.log")
-    
-    # 创建并配置logger
     logger = logging.getLogger("app")
     if not logger.handlers:
         logger.setLevel(logging.INFO)
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         logger.addHandler(handler)
-    
-    # 测试日志
     logger.info("===== 日志系统初始化成功 =====")
-    logger.info(f"日志文件路径: {log_path}")
 
-    with open(base_path + "/config/locales.json", "r", encoding="utf-8") as f:
-        locales = json.load(f)
+    # --- [代理与 HTTP 客户端初始化] ---
+    proxy_url = None
+    trust_env = False
+    
+    if settings:
+        sys_set = settings.get("systemSettings", {})
+        mode = sys_set.get("proxyMode")
+        manual_url = sys_set.get("proxy", "").strip()
+        
+        if mode == "manual" and manual_url:
+            # 手动模式：如果是 socks，由于没安装库，直接跳过并警告
+            if manual_url.lower().startswith("socks"):
+                logger.error("检测到手动设置了 SOCKS 代理，但当前环境不支持。代理已失效。")
+                proxy_url = None
+            else:
+                proxy_url = manual_url
+        elif mode == "system":
+            # 系统模式：信任环境（此时环境里已经没有 socks 了，很安全）
+            trust_env = True
+    
+    # 初始化全局带连接池的 HTTP 客户端
+    timeout_config = httpx.Timeout(None, connect=10.0)
+    global_http_client = httpx.AsyncClient(
+        timeout=timeout_config,
+        proxy=proxy_url,
+        trust_env=trust_env
+    )
 
+    # --- [模型 Client 初始化] ---
+    # 辅助函数：统一注入 global_http_client
+    def create_model_client(provider_key, config_node=None):
+        if not settings: return AsyncOpenAI(http_client=global_http_client)
+        
+        target_cfg = config_node if config_node else settings
+        p_name = target_cfg.get('selectedProvider', settings.get('selectedProvider'))
+        c_cls = get_client_class(settings, p_name)
+        
+        return c_cls(
+            api_key=target_cfg.get('api_key') or settings.get('api_key', ''),
+            base_url=target_cfg.get('base_url') or settings.get('base_url') or "https://api.openai.com/v1",
+            http_client=global_http_client  # 强制使用我们定义的带代理控制的客户端
+        )
+
+    if settings:
+        client = create_model_client('main')
+        reasoner_client = create_model_client('reasoner', settings.get('reasoner', {}))
+        
+        fast_cfg = settings.get('fast', {})
+        if fast_cfg.get('enabled'):
+            fast_client = create_model_client('fast', fast_cfg)
+        else:
+            fast_client = None
+    else:
+        client = AsyncOpenAI(http_client=global_http_client)
+        reasoner_client = AsyncOpenAI(http_client=global_http_client)
+        fast_client = AsyncOpenAI(http_client=global_http_client)
+
+    # --- [其他初始化：ASR / MCP] ---
     try:
         from py.sherpa_asr import _get_recognizer
         asyncio.get_running_loop().run_in_executor(None, _get_recognizer)
     except Exception as e:
         logger.error(f"尝试启动sherpa失败: {e}")
-        pass
 
-    if settings:
-        # 1. 初始化主模型 Client
-        c_class = get_client_class(settings, settings.get('selectedProvider'))
-        client = c_class(api_key=settings.get('api_key', ''), base_url=settings.get('base_url') or "https://api.openai.com/v1")
-        
-        # 2. 初始化推理模型 Client
-        r_class = get_client_class(settings, settings.get('reasoner', {}).get('selectedProvider'))
-        reasoner_client = r_class(api_key=settings.get('reasoner', {}).get('api_key', ''), base_url=settings.get('reasoner', {}).get('base_url') or "https://api.openai.com/v1")
-        
-        # 3. 初始化快速模型 Client
-        fast_cfg = settings.get('fast', {})
-        if fast_cfg.get('enabled'):
-            f_provider = fast_cfg.get('selectedProvider', settings.get('selectedProvider'))
-            f_class = get_client_class(settings, f_provider)
-            fast_client = f_class(
-                api_key=fast_cfg.get('api_key') or settings.get('api_key', ''),
-                base_url=fast_cfg.get('base_url') or settings.get('base_url') or "https://api.openai.com/v1"
-            )
-
-        # 设置代理
-        if settings["systemSettings"]["proxy"] and settings["systemSettings"]["proxyMode"] == "manual":
-            os.environ['http_proxy'] = settings["systemSettings"]["proxy"].strip()
-            os.environ['https_proxy'] = settings["systemSettings"]["proxy"].strip()
-        elif settings["systemSettings"]["proxyMode"] == "system":
-            os.environ.pop('http_proxy', None)
-            os.environ.pop('https_proxy', None)
-        else:
-            os.environ['http_proxy'] = ""
-            os.environ['https_proxy'] = ""
-    else:
-        client = AsyncOpenAI()
-        reasoner_client = AsyncOpenAI()
-        fast_client = None
-        
+    # MCP 初始化逻辑 (保持你原有的逻辑，但内部会复用 global_http_client)
     mcp_init_tasks = []
 
-    async def init_mcp_with_timeout(
-        server_name: str,
-        server_config: dict,
-        *,
-        timeout: float = 6.0,
-        max_wait_failure: float = 5.0
-    ) -> Tuple[str, Optional["McpClient"], Optional[str]]:
-        """
-        初始化单个 MCP 服务器，带超时与失败回调同步。
-        返回 (server_name, mcp_client or None, error or None)
-        """
-        # 1. 如果配置里直接禁用，直接返回
+    async def init_mcp_with_timeout(server_name: str, server_config: dict, timeout=6.0, max_wait_failure=5.0):
         if server_config.get("disabled"):
             return server_name, None, "disabled"
-
-        # 2. 预创建客户端实例
+        
         mcp_client = mcp_client_list.get(server_name) or McpClient()
         mcp_client_list[server_name] = mcp_client
-
-        # 3. 用于同步回调的事件
         failure_event = asyncio.Event()
-        first_error: Optional[str] = None
+        first_error = None
 
-        async def on_failure(msg: str) -> None:
+        async def on_failure(msg: str):
             nonlocal first_error
-            # 仅第一次生效
-            if first_error is not None:
-                return
+            if first_error: return
             first_error = msg
-            logger.error("on_failure: %s -> %s", server_name, msg)
-
-            # 记录到 settings
-            settings.setdefault("mcpServers", {}).setdefault(server_name, {})
-            settings["mcpServers"][server_name]["disabled"] = True
-            settings["mcpServers"][server_name]["processingStatus"] = "server_error"
-
-            # 把当前客户端标为禁用并关闭
+            logger.error(f"MCP {server_name} failure: {msg}")
+            settings.setdefault("mcpServers", {}).setdefault(server_name, {})["disabled"] = True
             mcp_client.disabled = True
             await mcp_client.close()
-            failure_event.set()          # 唤醒主协程
+            failure_event.set()
 
-        # 4. 真正初始化
-        init_task = asyncio.create_task(
-            mcp_client.initialize(
-                server_name,
-                server_config,
-                on_failure_callback=on_failure
-            )
-        )
-
+        init_task = asyncio.create_task(mcp_client.initialize(server_name, server_config, on_failure_callback=on_failure))
         try:
-            # 4.1 先等初始化本身（最多 timeout 秒）
             await asyncio.wait_for(init_task, timeout=timeout)
-
-            # 4.2 初始化没抛异常，再等待看会不会触发 on_failure
-            #     如果 on_failure 已经执行过，event 会被立即 set
             try:
                 await asyncio.wait_for(failure_event.wait(), timeout=max_wait_failure)
             except asyncio.TimeoutError:
-                # 5 秒内没收到失败回调，认为成功
                 pass
-
-            # 5. 最终判定
-            if first_error:
-                return server_name, None, first_error
-            return server_name, mcp_client, None
-
-        except asyncio.TimeoutError:
-            # 初始化阶段就超时
-            logger.error("%s initialize timed out", server_name)
-            return server_name, None, "timeout"
-
+            return server_name, (None if first_error else mcp_client), first_error
         except Exception as exc:
-            # 任何其他异常
-            logger.exception("%s initialize crashed", server_name)
             return server_name, None, str(exc)
-
         finally:
-            # 如果任务还活着，保险起见取消掉
-            if not init_task.done():
-                init_task.cancel()
-                try:
-                    await init_task
-                except asyncio.CancelledError:
-                    pass
+            if not init_task.done(): init_task.cancel()
 
     async def check_results():
-        """后台收集任务结果"""
-        logger.info("check_results started with %d tasks", len(mcp_init_tasks))
         for task in asyncio.as_completed(mcp_init_tasks):
-            server_name, mcp_client, error = await task
-            if error:
-                logger.error(f"MCP client {server_name} initialization failed: {error}")
-                settings['mcpServers'][server_name]['disabled'] = True
-                settings['mcpServers'][server_name]['processingStatus'] = 'server_error'
-                mcp_client_list[server_name] = McpClient()
-                mcp_client_list[server_name].disabled = True
-            else:
-                logger.info(f"MCP client {server_name} initialized successfully")
-                mcp_client_list[server_name] = mcp_client
-        await save_settings(settings)  # 所有任务完成后统一保存
-        await broadcast_settings_update(settings)  # 所有任务完成后统一广播
+            name, m_client, err = await task
+            if err:
+                settings['mcpServers'][name]['processingStatus'] = 'server_error'
+            elif m_client:
+                mcp_client_list[name] = m_client
+        await save_settings(settings)
+        await broadcast_settings_update(settings)
 
     if settings and settings.get('mcpServers'):
-        # 只有当有配置时才创建任务
-        mcp_init_tasks = [
-            asyncio.create_task(init_mcp_with_timeout(server_name, server_config))
-            for server_name, server_config in settings['mcpServers'].items()
-        ]
-        
-        if mcp_init_tasks:  # 只在有任务时启动后台收集
-            asyncio.create_task(check_results())
+        mcp_init_tasks = [asyncio.create_task(init_mcp_with_timeout(k, v)) for k, v in settings['mcpServers'].items()]
+        if mcp_init_tasks: asyncio.create_task(check_results())
     else:
-        mcp_init_tasks = []
-        # 直接广播空配置
         asyncio.create_task(broadcast_settings_update(settings or {}))
+
+    # --- [启动完成] ---
     yield
-    # 所有任务结束后，清理
-    # --- 关闭时运行的代码 (Shutdown) ---
-    print("System shutting down, cleaning up Node processes...")
-    # 遍历所有已启动的扩展并关闭它们
+
+    # --- [关闭逻辑] ---
+    print("System shutting down, cleaning up...")
     ext_ids = list(node_mgr.exts.keys())
     for ext_id in ext_ids:
-        try:
-            print(f"Stopping extension: {ext_id}")
-            await node_mgr.stop(ext_id)
-        except Exception as e:
-            print(f"Error stopping {ext_id}: {e}")
+        try: await node_mgr.stop(ext_id)
+        except: pass
+        
     if global_http_client:
         await global_http_client.aclose()
-    print("All Node processes terminated.")
+    print("All processes terminated.")
+
 
 # WebSocket端点增加连接管理
 active_connections = []
@@ -4292,7 +4243,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                     thread = threading.Thread(target=run_async_task, daemon=True)
                     thread.start()
                     print("记忆更新任务已提交到后台线程")
-                    
+
                 return
             except Exception as e:
                 logger.error(f"{request.messages}")

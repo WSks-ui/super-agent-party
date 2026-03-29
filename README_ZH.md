@@ -71,19 +71,30 @@
 
 ⭐注意！安装时选择仅为当前用户安装，否则启动时需要管理员权限。操作系统需要是**Windows 10/11、Window Server 2025**或者后续版本！
 
-### MacOS整合包（目前只支持M芯片，适合开发者，同样是免安装源码版本，支持一键同步到仓库最新版本，无需等待桌面版打包）
+### MacOS 整合包（目前只支持 M 芯片，免安装源码版本，支持一键同步到仓库最新版本，无需等待桌面版打包）
+> **适合开发者/进阶用户**：免安装源码版本，支持一键同步到仓库最新版本，无需等待桌面版打包。
 
-  👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.9/super-agent-party-mac-v0.3.9.7z)
-  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/v0.3.9/super-agent-party-mac-v0.3.9.7z)
+👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.9/super-agent-party-mac-v0.3.9.7z)  
+👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/v0.3.9/super-agent-party-mac-v0.3.9.7z)
 
-⭐注意！你可以在终端使用`一键更新(update).sh`更新软件，也可以在终端使用`一键启动(start).sh`启动软件。在使用前，记得给文件加权限！
+#### 🚀 使用步骤
 
-  ```shell
-  chmod +x 一键更新(update).sh
-  ./一键更新(update).sh
-  chmod +x 一键启动(start).sh
-  ./一键启动(start).sh
-  ```
+**1. 移除网络下载隔离（重要）**
+下载并解压后，打开终端，输入以下命令（注意最后有一个空格），然后将**解压后的文件夹**拖入终端窗口并回车：
+```shell
+sudo xattr -rd com.apple.quarantine 
+```
+*(注：`-rd` 参数会递归移除文件夹内所有组件的隔离属性，否则 Python 环境可能无法正常调用)*
+
+**2. 赋予脚本执行权限**
+在终端中进入该文件夹，执行：
+```shell
+chmod +x 一键更新(update).sh 一键启动(start).sh
+```
+
+**3. 运行软件**
+- **首次使用/更新：** 建议先执行 `./一键更新(update).sh` 确保依赖同步到最新。
+- **日常启动：** 直接执行 `./一键启动(start).sh`。
 
 ### MacOS桌面版安装（目前只支持M芯片）
 
