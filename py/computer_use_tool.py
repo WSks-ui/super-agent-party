@@ -8,22 +8,30 @@ from typing import List, Optional, Tuple
 # 开启安全防故障机制：鼠标移动到屏幕四个角落将引发 pyautogui.FailSafeException 中断程序
 pyautogui.FAILSAFE = True
 
+if platform.system() == "Windows":
+    import ctypes
+    try:
+        # 设置进程 DPI 感知，防止 Windows 缩放导致坐标偏移
+        # 1 = DPI Aware, 2 = Per Monitor DPI Aware
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception as e:
+        # 兼容老版本 Windows
+        ctypes.windll.user32.SetProcessDPIAware()
+
 def _percent_to_pixel(x_percent: float, y_percent: float) -> Tuple[int, int]:
-    """
-    内部辅助函数：将百分比 (0.0 到 100.0) 转换为当前屏幕的实际像素坐标。
-    处理了边界限制，防止坐标超出屏幕。
-    """
+    # 强制重新获取 size，确保在多显示器或分辨率切换后依然准确
     width, height = pyautogui.size()
     
-    # 限制在 0 到 100 之间
-    x_percent = max(0.0, min(100.0, float(x_percent)))
-    y_percent = max(0.0, min(100.0, float(y_percent)))
+    # 使用 round 而不是 int，减少 0.5 像素带来的累积误差
+    px = int(round(width * (x_percent / 100.0)))
+    py = int(round(height * (y_percent / 100.0)))
     
-    # 转换为像素（最大值为 分辨率 - 1，因为像素是从 0 开始计算的）
-    px = min(int(width * (x_percent / 100.0)), width - 1)
-    py = min(int(height * (y_percent / 100.0)), height - 1)
+    # 边界检查
+    px = max(0, min(px, width - 1))
+    py = max(0, min(py, height - 1))
     
     return px, py
+
 
 async def mouse_move_async(x: float, y: float, duration: float = 0.5) -> str:
     """移动鼠标到屏幕百分比位置"""
@@ -148,8 +156,8 @@ mouse_move_tool = {
         "parameters": {
             "type": "object",
             "properties": {
-                "x": {"type": "number", "description": "目标水平坐标(X轴)，范围 0.0 到 100.0 的百分比。例如 50.5 表示宽度正中间"},
-                "y": {"type": "number", "description": "目标垂直坐标(Y轴)，范围 0.0 到 100.0 的百分比。例如 50.5 表示高度正中间"},
+                "x": {"type": "number", "description": "目标水平坐标(X轴)，范围 0.0 到 100.0 的百分比。例如 50 表示宽度正中间","maximum": 100, "minimum": 0},
+                "y": {"type": "number", "description": "目标垂直坐标(Y轴)，范围 0.0 到 100.0 的百分比。例如 50 表示高度正中间","maximum": 100, "minimum": 0},
                 "duration": {"type": "number", "description": "移动耗时（秒），默认为0.5秒。为了拟真，建议不要设为0", "default": 0.5}
             },
             "required": ["x", "y"]
@@ -167,8 +175,8 @@ mouse_click_tool = {
             "properties": {
                 "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "点击的按键，左键/右键/中键"},
                 "clicks": {"type": "integer", "description": "点击次数。1为单击，2为双击", "default": 1},
-                "x": {"type": "number", "description": "点击前的目标水平坐标（0.0 到 100.0 的百分比），可选"},
-                "y": {"type": "number", "description": "点击前的目标垂直坐标（0.0 到 100.0 的百分比），可选"}
+                "x": {"type": "number", "description": "点击前的目标水平坐标（0.0 到 100.0 的百分比），可选","maximum": 100, "minimum": 0},
+                "y": {"type": "number", "description": "点击前的目标垂直坐标（0.0 到 100.0 的百分比），可选","maximum": 100, "minimum": 0}
             },
             "required": ["button"]
         }
@@ -183,8 +191,8 @@ mouse_drag_tool = {
         "parameters": {
             "type": "object",
             "properties": {
-                "x": {"type": "number", "description": "拖拽终点水平坐标（0.0 到 100.0 的百分比）"},
-                "y": {"type": "number", "description": "拖拽终点垂直坐标（0.0 到 100.0 的百分比）"},
+                "x": {"type": "number", "description": "拖拽终点水平坐标（0.0 到 100.0 的百分比）","maximum": 100, "minimum": 0},
+                "y": {"type": "number", "description": "拖拽终点垂直坐标（0.0 到 100.0 的百分比）","maximum": 100, "minimum": 0},
                 "duration": {"type": "number", "description": "拖拽过程耗时（秒）", "default": 0.5},
                 "button": {"type": "string", "enum": ["left", "right"], "description": "按住哪个键拖拽，默认左键", "default": "left"}
             },
