@@ -3825,6 +3825,118 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                                 "content": str("".join(results)),
                             }
                         )
+
+                        max_rounds = settings.get("max_rounds", 0)
+
+                        if max_rounds > 0 and request.messages:
+                            def get_role(msg):
+                                return msg.get("role") if isinstance(msg, dict) else msg.role
+                            
+                            def has_tool_calls(msg):
+                                """检查assistant消息是否包含工具调用"""
+                                if get_role(msg) != "assistant":
+                                    return False
+                                if isinstance(msg, dict):
+                                    return bool(msg.get("tool_calls"))
+                                return bool(getattr(msg, "tool_calls", None))
+                            
+                            def get_tool_call_id(msg):
+                                """获取tool消息的tool_call_id"""
+                                if isinstance(msg, dict):
+                                    return msg.get("tool_call_id")
+                                return getattr(msg, "tool_call_id", None)
+
+                            system_messages = []
+                            chat_messages = request.messages
+
+                            # 1. 分离system消息
+                            if chat_messages and get_role(chat_messages[0]) == "system":
+                                system_messages = [chat_messages[0]]
+                                chat_messages = chat_messages[1:]
+
+                            # 2. 从后向前截断，确保工具调用链完整
+                            # 注意：最后一轮是 tool 消息，需要保留完整的 (assistant->tool) 对
+                            retain_count = max_rounds * 2 + 1  # user-assistant 对，+1 给可能的 pending user
+                            
+                            if len(chat_messages) > retain_count:
+                                start_idx = len(chat_messages) - retain_count
+                                
+                                # 边界检查1: 不能以 tool 或 assistant(with tool_calls) 开始
+                                while start_idx > 0:
+                                    current_msg = chat_messages[start_idx]
+                                    current_role = get_role(current_msg)
+                                    
+                                    # 情况A: 不能以 tool 开始（tool必须有前置的assistant tool_calls）
+                                    if current_role == "tool":
+                                        start_idx -= 1
+                                        continue
+                                        
+                                    # 情况B: 不能以带tool_calls的assistant开始（必须有前置user）
+                                    if has_tool_calls(current_msg):
+                                        start_idx -= 1
+                                        continue
+                                        
+                                    # 情况C: 不能以普通assistant开始（必须有前置user）
+                                    if current_role == "assistant":
+                                        start_idx -= 1
+                                        continue
+                                        
+                                    # 现在 start_idx 指向的是 user，检查是否完整
+                                    break
+                                
+                                # 边界检查2: 确保工具调用链完整
+                                # 扫描从 start_idx 开始，如果发现 assistant 有 tool_calls，
+                                # 确保后面有对应的 tool 响应（工具链可能跨越多条消息）
+                                i = start_idx
+                                while i < len(chat_messages):
+                                    msg = chat_messages[i]
+                                    if has_tool_calls(msg):
+                                        # 收集这个 assistant 调用的所有 tool_call_id
+                                        assistant_tool_ids = set()
+                                        if isinstance(msg, dict):
+                                            for tc in msg.get("tool_calls", []):
+                                                tc_id = tc.get("id") if isinstance(tc, dict) else tc.id
+                                                if tc_id:
+                                                    assistant_tool_ids.add(tc_id)
+                                        else:
+                                            for tc in getattr(msg, "tool_calls", []):
+                                                tc_id = getattr(tc, "id", None)
+                                                if tc_id:
+                                                    assistant_tool_ids.add(tc_id)
+                                        
+                                        # 检查后续的 tool 消息
+                                        j = i + 1
+                                        found_tool_ids = set()
+                                        while j < len(chat_messages) and get_role(chat_messages[j]) == "tool":
+                                            found_tool_ids.add(get_tool_call_id(chat_messages[j]))
+                                            j += 1
+                                        
+                                        # 如果工具响应不全，需要前移 start_idx
+                                        missing_tools = assistant_tool_ids - found_tool_ids
+                                        if missing_tools and i > start_idx:
+                                            # 前移 start_idx 到更早的位置，确保包含完整的工具链
+                                            start_idx = i
+                                            # 重置扫描，从新的 start_idx 重新开始
+                                            i = start_idx
+                                            continue
+                                    i += 1
+                                
+                                # 应用截断
+                                chat_messages = chat_messages[start_idx:]
+                                
+                                # 最终保险：确保第一条消息是 user 或 assistant（不能是 tool）
+                                # 因为最后一轮是 tool，但截断后的第一条不能是 tool
+                                while chat_messages and get_role(chat_messages[0]) == "tool":
+                                    # 如果第一条是 tool，向前寻找对应的 assistant
+                                    # 这里简单处理：移除第一条 tool 并继续检查
+                                    chat_messages = chat_messages[1:]
+                                
+                                # 另一种保险：如果第一条是带 tool_calls 的 assistant，也需要保留完整的链
+                                # 但上面的边界检查已经处理了这种情况
+                            
+                            # 重新组装消息
+                            request.messages = system_messages + chat_messages
+                        
                         reasoner_messages.append(
                             {
                                 "role": "assistant",
