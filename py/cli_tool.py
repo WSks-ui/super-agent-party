@@ -630,7 +630,7 @@ print(json.dumps(filtered))
 
 async def todo_write_tool(action: str, id: str = None, content: str = None, 
                           priority: str = "medium", status: str = None) -> str:
-    """[Docker] 待办任务管理工具 - 支持增删改查和状态管理"""
+    """[Docker] 待办任务管理工具 - 使用3位数字有序ID"""
     try:
         real_cwd = await _get_current_cwd()
         container_name = await get_or_create_docker_sandbox(real_cwd)
@@ -645,15 +645,28 @@ async def todo_write_tool(action: str, id: str = None, content: str = None,
             
         msg = ""
 
-        # ===== 核心操作 =====
-        
+        # 生成下一个有序ID的辅助函数
+        def _generate_ordered_id(existing_todos):
+            if not existing_todos:
+                return "001"
+            numeric_ids = []
+            for t in existing_todos:
+                tid = t.get('id', '')
+                if tid.isdigit():
+                    numeric_ids.append(int(tid))
+            if not numeric_ids:
+                return "001"
+            next_id = max(numeric_ids) + 1
+            return str(next_id).zfill(3)
+
         if action == "create":
-            """创建新任务 - 必需 content，可选 priority"""
+            """创建新任务 - 自动生成3位数字有序ID"""
             if not content: 
                 return "[Error] 创建任务必须提供 content 参数"
             
+            new_id = _generate_ordered_id(todos)
             new_todo = {
-                "id": id or str(uuid.uuid4())[:8],
+                "id": new_id,
                 "content": content,
                 "priority": priority,
                 "status": "pending",
@@ -661,73 +674,71 @@ async def todo_write_tool(action: str, id: str = None, content: str = None,
                 "completed_at": None
             }
             todos.append(new_todo)
-            msg = f"[Success] 已创建任务: {new_todo['id']}"
+            msg = f"[Success] 已创建任务 #{new_id}: {content[:30]}"
             
         elif action == "list":
-            """列出所有任务 - 无需其他参数"""
+            """列出所有任务 - 按ID数字排序"""
             if not todos: 
                 return "当前暂无任务"
             
-            lines = ["📋 **任务列表**:"]
-            # 排序：未完成在前，高优先级在前
-            sorted_todos = sorted(todos, key=lambda x: (x.get('status') == 'done', 
-                                                        x.get('priority') != 'high'))
+            lines = ["📋 **任务列表** (ID越大创建越晚):"]
+            sorted_todos = sorted(todos, key=lambda x: int(x['id']) if x['id'].isdigit() else 0)
+            
             for t in sorted_todos:
                 icon = "✅" if t.get('status') == 'done' else "⏳"
-                priority_map = {"high": "🔴 高", "medium": "🟡 中", "low": "🟢 低"}
+                priority_map = {"high": "🔴", "medium": "🟡", "low": "🟢"}
                 p_icon = priority_map.get(t.get('priority', 'medium'), "⚪")
-                lines.append(f"{icon} {p_icon} [{t['id']}] {t['content'][:40]}")
+                lines.append(f"{icon} [{t['id']}] {p_icon} {t['content'][:40]}")
             return "\n".join(lines)
 
         elif action == "complete":
-            """【高频】标记任务为已完成 - 幂等操作（不会反向切换）"""
+            """【高频】标记任务为已完成 - 幂等操作"""
             if not id: 
-                return "[Error] 完成任务必须提供 id"
+                return "[Error] 完成任务必须提供 id (如: 001)"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if target.get('status') == 'done':
-                msg = f"[Info] 任务 {id} 已经是完成状态"
+                msg = f"[Info] 任务 #{id} 已经是完成状态"
             else:
                 target['status'] = 'done'
                 target['completed_at'] = datetime.now().isoformat()
-                msg = f"[Success] 已标记完成任务: {id}"
+                msg = f"[Success] 已完成任务 #{id}"
 
         elif action == "toggle":
-            """【谨慎】切换完成状态 - pending↔done（会反向切换）"""
+            """切换完成状态"""
             if not id: 
                 return "[Error] 切换状态必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if target.get('status') != 'done':
                 target['status'] = 'done'
                 target['completed_at'] = datetime.now().isoformat()
-                msg = f"[Success] 已完成任务: {id}"
+                msg = f"[Success] 已完成任务 #{id}"
             else:
                 target['status'] = 'pending'
                 target['completed_at'] = None
-                msg = f"[Success] 已重新打开任务: {id}"
+                msg = f"[Success] 已重新打开任务 #{id}"
 
         elif action == "update":
-            """编辑任务详情 - 可改内容、优先级、强制设置状态"""
+            """编辑任务详情"""
             if not id: 
                 return "[Error] 更新任务必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if content: 
                 target['content'] = content
             if priority: 
                 target['priority'] = priority
             
-            # 强制设置状态（与 toggle 不同，update 是直接指定）
             if status:
                 if status == "done" and target.get('status') != "done":
                     target['completed_at'] = datetime.now().isoformat()
@@ -736,24 +747,24 @@ async def todo_write_tool(action: str, id: str = None, content: str = None,
                 target['status'] = status
             
             target['updated_at'] = datetime.now().isoformat()
-            msg = f"[Success] 已更新任务: {id}"
+            msg = f"[Success] 已更新任务 #{id}"
 
         elif action == "delete":
-            """删除任务 - 永久移除"""
+            """删除任务"""
             if not id: 
                 return "[Error] 删除任务必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             todos.remove(target)
-            msg = f"[Success] 已删除任务: {id}"
+            msg = f"[Success] 已删除任务 #{id}"
 
         else:
             return f"[Error] 未知操作: {action}"
 
-        # 写回 Docker 容器（保持不变）
+        # 写回 Docker 容器
         with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp:
             tmp.write(json.dumps(todos, indent=2, ensure_ascii=False))
             tmp_path = tmp.name
@@ -1470,7 +1481,7 @@ async def edit_file_patch_tool_local(path: str, old_string: str, new_string: str
 
 async def todo_write_tool_local(action: str, id: str = None, content: str = None, 
                                 priority: str = "medium", status: str = None) -> str:
-    """本地待办任务管理工具 - 支持增删改查和状态管理"""
+    """本地待办任务管理工具 - 使用3位数字有序ID"""
     try:
         cwd = await _get_current_cwd()
         party_dir = Path(cwd) / ".agent"
@@ -1492,80 +1503,96 @@ async def todo_write_tool_local(action: str, id: str = None, content: str = None
             
         msg = ""
 
-        # ===== 核心操作 =====
-        
+        # 生成下一个有序ID的辅助函数
+        def _generate_ordered_id(existing_todos):
+            if not existing_todos:
+                return "001"
+            # 找出所有数字ID中的最大值（兼容旧数据可能是UUID的情况）
+            numeric_ids = []
+            for t in existing_todos:
+                tid = t.get('id', '')
+                if tid.isdigit():
+                    numeric_ids.append(int(tid))
+            if not numeric_ids:
+                return "001"
+            next_id = max(numeric_ids) + 1
+            return str(next_id).zfill(3)  # 001, 002... 999
+
         if action == "create":
-            """创建新任务 - 必需 content，可选 priority"""
+            """创建新任务 - 自动生成3位数字有序ID"""
             if not content: 
                 return "[Error] 创建任务必须提供 content 参数"
             
+            new_id = _generate_ordered_id(todos)
             new_todo = {
-                "id": id or str(uuid.uuid4())[:8],
+                "id": new_id,
                 "content": content,
                 "priority": priority,
                 "status": "pending",
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.now().isoformat(),
+                "completed_at": None
             }
             todos.append(new_todo)
-            msg = f"[Success] 已创建任务: {new_todo['id']}"
+            msg = f"[Success] 已创建任务 #{new_id}: {content[:30]}"
             
         elif action == "list":
-            """列出所有任务 - 无需其他参数"""
+            """列出所有任务 - 按ID数字大小排序"""
             if not todos: 
                 return "当前项目暂无任务"
             
-            lines = ["📋 **项目任务列表**:"]
-            sorted_todos = sorted(todos, key=lambda x: x.get('status') == 'done')
+            lines = ["📋 **项目任务列表** (ID越大创建越晚):"]
+            # 按ID数字排序，确保展示有序性
+            sorted_todos = sorted(todos, key=lambda x: int(x['id']) if x['id'].isdigit() else 0)
             
             for t in sorted_todos:
                 status_icon = "✅" if t.get('status') == 'done' else "⏳"
-                priority_map = {"high": "🔴 高", "medium": "🟡 中", "low": "🟢 低"}
+                priority_map = {"high": "🔴", "medium": "🟡", "low": "🟢"}
                 p_icon = priority_map.get(t.get('priority', 'medium'), "⚪")
-                lines.append(f"{status_icon} {p_icon} [{t['id']}] {t['content'][:50]}")
+                lines.append(f"{status_icon} [{t['id']}] {p_icon} {t['content'][:40]}")
             return "\n".join(lines)
 
         elif action == "complete":
-            """【高频】标记任务为已完成 - 幂等操作（不会反向切换）"""
+            """【高频】标记任务为已完成 - 幂等操作"""
             if not id: 
-                return "[Error] 完成任务必须提供 id"
+                return "[Error] 完成任务必须提供 id (如: 001)"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if target.get('status') == 'done':
-                msg = f"[Info] 任务 {id} 已经是完成状态"
+                msg = f"[Info] 任务 #{id} 已经是完成状态"
             else:
                 target['status'] = 'done'
                 target['completed_at'] = datetime.now().isoformat()
-                msg = f"[Success] 已标记完成任务: {id}"
+                msg = f"[Success] 已完成任务 #{id}"
 
         elif action == "toggle":
-            """【谨慎】切换完成状态 - pending↔done（会反向切换）"""
+            """切换完成状态 - pending↔done"""
             if not id: 
                 return "[Error] 切换状态必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if target.get('status') != 'done':
                 target['status'] = 'done'
                 target['completed_at'] = datetime.now().isoformat()
-                msg = f"[Success] 已完成任务: {id}"
+                msg = f"[Success] 已完成任务 #{id}"
             else:
                 target['status'] = 'pending'
                 target['completed_at'] = None
-                msg = f"[Success] 已重新打开任务: {id}"
+                msg = f"[Success] 已重新打开任务 #{id}"
 
         elif action == "update":
-            """编辑任务详情 - 可改内容、优先级、强制设置状态"""
+            """编辑任务详情"""
             if not id: 
                 return "[Error] 更新任务必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             if content: 
                 target['content'] = content
@@ -1580,19 +1607,19 @@ async def todo_write_tool_local(action: str, id: str = None, content: str = None
                 target['status'] = status
             
             target['updated_at'] = datetime.now().isoformat()
-            msg = f"[Success] 已更新任务: {id}"
+            msg = f"[Success] 已更新任务 #{id}"
 
         elif action == "delete":
-            """删除任务 - 永久移除"""
+            """删除任务"""
             if not id: 
                 return "[Error] 删除任务必须提供 id"
             
             target = next((t for t in todos if t['id'] == id), None)
             if not target: 
-                return f"[Error] 未找到任务: {id}"
+                return f"[Error] 未找到任务 #{id}"
             
             todos.remove(target)
-            msg = f"[Success] 已删除任务: {id}"
+            msg = f"[Success] 已删除任务 #{id}"
 
         else:
             return f"[Error] 未知操作: {action}"
@@ -1605,7 +1632,7 @@ async def todo_write_tool_local(action: str, id: str = None, content: str = None
 
     except Exception as e:
         return f"[Error] 操作失败: {str(e)}"
-
+    
 # ==================== Claude & Qwen Agents (恢复) ====================
 
 cli_info = "这是一个交互式命令行工具..."
