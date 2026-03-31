@@ -2541,7 +2541,7 @@ function addcontrolPanel() {
         let transformState = 0; 
         moveModeBtn.title = await t('ModeOff') || 'Mode: Off';
         // 默认图标
-        moveModeBtn.innerHTML = '<i class="fas fa-arrows-alt"></i>'; 
+        moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>'; 
         moveModeBtn.style.cssText = `
             width: ${btn_width}px; height: ${btn_height}px; 
             background: rgba(255,255,255,0.95);
@@ -2583,7 +2583,7 @@ function addcontrolPanel() {
                     transformControl.detach();
                     moveModeBtn.style.color = '#333';
                     moveModeBtn.style.background = 'rgba(255,255,255,0.95)';
-                    moveModeBtn.innerHTML = '<i class="fas fa-arrows-alt"></i>';
+                    moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>';
                     moveModeBtn.title = await t('ModeOff') || 'Mode: Off';
                     break;
 
@@ -2592,7 +2592,7 @@ function addcontrolPanel() {
                     transformControl.setSpace('world'); 
                     moveModeBtn.style.color = '#ff6b35'; 
                     moveModeBtn.style.background = 'rgba(255,255,255,1)';
-                    moveModeBtn.innerHTML = '<i class="fas fa-arrows-alt"></i>';
+                    moveModeBtn.innerHTML = '<i class="fa-solid fa-arrows-left-right-to-line"></i>';
                     moveModeBtn.title = await t('ModeMove') || 'Move Mode';
                     break;
 
