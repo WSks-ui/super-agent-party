@@ -648,16 +648,12 @@ async def todo_write_tool(action: str, id: str = None, content: str = None,
         # 生成下一个有序ID的辅助函数
         def _generate_ordered_id(existing_todos):
             if not existing_todos:
-                return "001"
-            numeric_ids = []
-            for t in existing_todos:
-                tid = t.get('id', '')
-                if tid.isdigit():
-                    numeric_ids.append(int(tid))
+                return "1"
+            # 找出最大数字 ID（兼容旧数据）
+            numeric_ids = [int(t['id']) for t in existing_todos if t['id'].isdigit()]
             if not numeric_ids:
-                return "001"
-            next_id = max(numeric_ids) + 1
-            return str(next_id).zfill(3)
+                return "1"
+            return str(max(numeric_ids) + 1)  # 1, 2, 3... 不补零，不限制位数
 
         if action == "create":
             """创建新任务 - 自动生成3位数字有序ID"""
@@ -1506,17 +1502,12 @@ async def todo_write_tool_local(action: str, id: str = None, content: str = None
         # 生成下一个有序ID的辅助函数
         def _generate_ordered_id(existing_todos):
             if not existing_todos:
-                return "001"
-            # 找出所有数字ID中的最大值（兼容旧数据可能是UUID的情况）
-            numeric_ids = []
-            for t in existing_todos:
-                tid = t.get('id', '')
-                if tid.isdigit():
-                    numeric_ids.append(int(tid))
+                return "1"
+            # 找出最大数字 ID（兼容旧数据）
+            numeric_ids = [int(t['id']) for t in existing_todos if t['id'].isdigit()]
             if not numeric_ids:
-                return "001"
-            next_id = max(numeric_ids) + 1
-            return str(next_id).zfill(3)  # 001, 002... 999
+                return "1"
+            return str(max(numeric_ids) + 1)  # 1, 2, 3... 不补零，不限制位数
 
         if action == "create":
             """创建新任务 - 自动生成3位数字有序ID"""
