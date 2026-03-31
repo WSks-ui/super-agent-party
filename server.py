@@ -415,7 +415,7 @@ if platform.system() == "Windows":
 
 def draw_grid_on_image(image: Image.Image, grid_spacing: int = 10) -> Image.Image:
     """
-    在图片上绘制百分比网格和坐标标签
+    在图片上绘制网格和千分比坐标标签
     grid_spacing: 每隔多少百分比画一根线，默认 10 (即 10x10 的网格)
     """
     draw = ImageDraw.Draw(image)
@@ -425,22 +425,24 @@ def draw_grid_on_image(image: Image.Image, grid_spacing: int = 10) -> Image.Imag
     line_color = (255, 0, 0, 128)  # 红色线
     text_color = (255, 0, 0, 255)
     
-    # 绘制垂直线
+    # 绘制垂直线 (百分比 0-100，但标签显示为千分比 0-1000‰)
     for x_pc in range(0, 101, grid_spacing):
         x = int(width * (x_pc / 100.0))
         # 确保不超出边界
         x = min(x, width - 1)
         draw.line([(x, 0), (x, height)], fill=line_color, width=1)
-        # 在顶部画数字坐标
-        draw.text((x + 2, 5), f"{x_pc}", fill=text_color)
+        # 在顶部画千分比坐标标签
+        x_permille = x_pc * 10  # 转换为千分比
+        draw.text((x + 2, 5), f"{x_permille}", fill=text_color)
 
     # 绘制水平线
     for y_pc in range(0, 101, grid_spacing):
         y = int(height * (y_pc / 100.0))
         y = min(y, height - 1)
         draw.line([(0, y), (width, y)], fill=line_color, width=1)
-        # 在左侧画数字坐标
-        draw.text((5, y + 2), f"{y_pc}", fill=text_color)
+        # 在左侧画千分比坐标标签
+        y_permille = y_pc * 10  # 转换为千分比
+        draw.text((5, y + 2), f"{y_permille}", fill=text_color)
         
     return image
 
@@ -967,6 +969,7 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
     from py.computer_use_tool import (
         mouse_move_async,
         mouse_click_async,
+        mouse_double_click_async,
         mouse_drag_async,
         mouse_scroll_async,
         mouse_hold_async,
@@ -1073,6 +1076,7 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         # 鼠标键盘控制
         "mouse_move_async":mouse_move_async,
         "mouse_click_async":mouse_click_async,
+        "mouse_double_click_async":mouse_double_click_async,
         "mouse_drag_async":mouse_drag_async,
         "mouse_scroll_async":mouse_scroll_async,
         "mouse_hold_async":mouse_hold_async,
@@ -5481,6 +5485,7 @@ async def execute_tool_manually(request: Request):
     from py.computer_use_tool import (
         mouse_move_async,
         mouse_click_async,
+        mouse_double_click_async,
         mouse_drag_async,
         mouse_scroll_async,
         mouse_hold_async,
@@ -5587,6 +5592,7 @@ async def execute_tool_manually(request: Request):
         # 鼠标键盘控制
         "mouse_move_async":mouse_move_async,
         "mouse_click_async":mouse_click_async,
+        "mouse_double_click_async":mouse_double_click_async,
         "mouse_drag_async":mouse_drag_async,
         "mouse_scroll_async":mouse_scroll_async,
         "mouse_hold_async":mouse_hold_async,
