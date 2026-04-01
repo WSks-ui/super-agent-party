@@ -3271,19 +3271,49 @@ function addcontrolPanel() {
         ]).then(()=>{ xrAutoBtn.style.display = (canAR || canVR) ? 'flex' : 'none'; });
         let xrSession = null;
         let xrRefSpace = null;
+        // 替换原有的 xrAutoBtn.addEventListener('click', ...) 逻辑
         xrAutoBtn.addEventListener('click', async () => {
-          if (renderer.xr.isPresenting) { await renderer.xr.getSession().end(); return; }
-          const mode = canAR ? 'immersive-ar' : 'immersive-vr';
-          const session = await navigator.xr.requestSession(mode, { optionalFeatures: ['local-floor', 'hit-test', 'dom-overlay'], domOverlay: { root: document.body } });
-          renderer.xr.setSession(session);
-          xrSession = session;
-          session.requestReferenceSpace('local-floor').then(refSpace => {
-            xrRefSpace = refSpace;
-            if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
-          });
-          if (xrSession && document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
-          renderer.setAnimationLoop(xrAnimate);
-          if (currentVrm) currentVrm.scene.position.set(0, 0, -1);
+            if (renderer.xr.isPresenting) {
+                await renderer.xr.getSession().end();
+                return;
+            }
+
+            // 自动检测模式
+            const mode = canAR ? 'immersive-ar' : 'immersive-vr';
+            
+            // 关键点：指定 UI 容器，而不是整个 body，这样交互更精准
+            // 确保你的 control-panel 和 subtitle-container 都在 body 下
+            const sessionInit = {
+                optionalFeatures: ['local-floor', 'hit-test', 'dom-overlay'],
+                domOverlay: { root: document.body } 
+            };
+
+            try {
+                const session = await navigator.xr.requestSession(mode, sessionInit);
+                renderer.xr.setSession(session);
+                xrSession = session;
+
+                // XR 模式下绝对不能请求 PointerLock，否则会导致无法交互
+                // if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock(); // 删除或注释这行
+
+                renderer.setAnimationLoop(xrAnimate);
+                
+                if (currentVrm) {
+                    // 在 VR 中将模型稍微放远一点，否则会“贴脸”
+                    currentVrm.scene.position.set(0, 0, -1.5);
+                }
+
+                // 处理 XR 输入（点击控制器触发点击 UI）
+                session.addEventListener('select', (event) => {
+                    // 这个事件在用户按下控制器扳机键时触发
+                    // DOM Overlay 会尝试将控制器的指向映射为点击
+                    console.log('XR Select triggered');
+                });
+
+            } catch (e) {
+                console.error('Failed to start XR session:', e);
+                alert('无法进入 XR 模式: ' + e.message);
+            }
         });
         renderer.xr.addEventListener('sessionend', () => { renderer.setAnimationLoop(null); animate(); xrSession = null; });
         function xrAnimate(time, frame) {
@@ -3581,6 +3611,7 @@ function addcontrolPanel() {
         document.body.addEventListener('mouseleave', () => { if (!isControlPanelHovered) scheduleHide(); });
         
         controlPanel.addEventListener('mouseenter', () => {
+            if (renderer.xr.isPresenting) return; 
             isControlPanelHovered = true;
             clearTimeout(hideTimeout);
             showControlPanel();

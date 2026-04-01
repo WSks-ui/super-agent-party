@@ -33,6 +33,25 @@
 				/* 或者使用 image-rendering 属性 */
 				image-rendering: -webkit-optimize-contrast;
 			}
+			/* 当处于 XR 模式时，强制调整 UI 样式 */
+			:xr-overlay #control-panel {
+				/* 增加缩放，因为在 VR 里 UI 往往显得很小 */
+				transform: scale(1.5) !important;
+				transform-origin: top right;
+			}
+
+			#control-panel, #subtitle-container {
+				/* 确保 UI 可以被点击 */
+				pointer-events: auto !important;
+				/* 防止选中文字 */
+				user-select: none;
+			}
+
+			/* 隐藏在 XR 中没用的拖拽手柄 */
+			:xr-overlay #drag-handle {
+				display: none !important;
+			}
+
 		</style>
 	</head>
 
