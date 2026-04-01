@@ -2463,9 +2463,38 @@ function addcontrolPanel() {
         opacity: 0;
         visibility: hidden;
         transform: translateX(20px);
-        transition: all 0.3s ease;
+        transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
         pointer-events: none;
         `;
+
+        // ==========================================
+        // ======= 创建左侧子面板 (用于收纳更多按钮) =======
+        // ==========================================
+        const subPanel = document.createElement('div');
+        subPanel.id = 'sub-control-panel';
+        subPanel.style.cssText = `
+            position: absolute;
+            right: 100%;
+            top: 0;
+            margin-right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            opacity: 0;
+            visibility: hidden;
+            /* 修复点 1: 将 0 改为具体的 translateX，并加上 scale(1) 锁定比例 */
+            transform: translateX(10px) scale(1); 
+            /* 修复点 2: 明确指定过渡属性，绝对不要用 all */
+            transition: opacity 0.3s ease, transform 0.3s ease; 
+            /* 修复点 3: 锁定变形原点在右侧，这样它展开时是向左伸展，而不是中心放大 */
+            transform-origin: right center; 
+            pointer-events: none;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+        `;
+
         // 创建工具提示容器
         const tooltipContainer = document.createElement('div');
         tooltipContainer.id = 'control-tooltip-container';
@@ -2495,898 +2524,76 @@ function addcontrolPanel() {
         tooltipContainer.appendChild(tooltip);
         document.body.appendChild(tooltipContainer);
         
-        // 工具提示显示函数 - 现在在左侧显示
+        // 工具提示显示函数 - 在左侧显示
         function showTooltip(button, text) {
             const rect = button.getBoundingClientRect();
             tooltip.textContent = text;
-            
-            // 计算位置（在按钮左侧）
             const topPosition = rect.top + (rect.height - tooltip.offsetHeight) / 2;
             tooltipContainer.style.left = `${rect.left - tooltip.offsetWidth - 15}px`;
             tooltipContainer.style.top = `${topPosition}px`;
-            
-            // 显示工具提示
             tooltipContainer.style.opacity = '1';
             tooltipContainer.style.transform = 'translateX(0)';
         }
         
-        // 隐藏工具提示
         function hideTooltip() {
             tooltipContainer.style.opacity = '0';
             tooltipContainer.style.transform = 'translateX(-10px)';
         }
         
-        // 为所有按钮添加悬浮效果
         const addHoverEffect = (button, text) => {
             button.addEventListener('mouseenter', (e) => {
                 showTooltip(button, text);
             });
-            
             button.addEventListener('mousemove', (e) => {
                 const rect = button.getBoundingClientRect();
                 const topPosition = rect.top + (rect.height - tooltip.offsetHeight) / 2;
                 tooltipContainer.style.left = `${rect.left - tooltip.offsetWidth - 15}px`;
                 tooltipContainer.style.top = `${topPosition}px`;
             });
-            
             button.addEventListener('mouseleave', () => {
                 hideTooltip();
             });
         };
 
-        const moveModeBtn = document.createElement('div');
-        moveModeBtn.id = 'move-mode-handle';
-        
-        // 状态：0=关闭, 1=移动, 2=旋转, 3=缩放
-        let transformState = 0; 
-        moveModeBtn.title = await t('ModeOff') || 'Mode: Off';
-        // 默认图标
-        moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>'; 
-        moveModeBtn.style.cssText = `
-            width: ${btn_width}px; height: ${btn_height}px; 
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1); 
-            border-radius: 50%; 
-            color: #333;
-            cursor: pointer; 
-            -webkit-app-region: no-drag; 
-            display: flex;
-            align-items: center; 
-            justify-content: center; 
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
-            transition: all 0.2s ease;
-            user-select: none; 
-            pointer-events: auto; 
-            backdrop-filter: blur(10px);
-        `;
-
-        // 点击事件循环
-        moveModeBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!currentVrm) return;
-            transformState = (transformState + 1) % 4;
-            updateTransformState();
-        });
-
-        async function updateTransformState() {
-            if (typeof transformControl === 'undefined') return;
-
-            // 每次切换先附着
-            if (transformState !== 0 && currentVrmWrapper) {
-                transformControl.attach(currentVrmWrapper);
-            }
-
-            switch (transformState) {
-                case 0: // 关闭
-                    transformControl.detach();
-                    moveModeBtn.style.color = '#333';
-                    moveModeBtn.style.background = 'rgba(255,255,255,0.95)';
-                    moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>';
-                    moveModeBtn.title = await t('ModeOff') || 'Mode: Off';
-                    break;
-
-                case 1: // 移动 (World 坐标)
-                    transformControl.setMode('translate');
-                    transformControl.setSpace('world'); 
-                    moveModeBtn.style.color = '#ff6b35'; 
-                    moveModeBtn.style.background = 'rgba(255,255,255,1)';
-                    moveModeBtn.innerHTML = '<i class="fa-solid fa-arrows-left-right-to-line"></i>';
-                    moveModeBtn.title = await t('ModeMove') || 'Move Mode';
-                    break;
-
-                case 2: // 旋转 (Local 坐标)
-                    transformControl.setMode('rotate');
-                    transformControl.setSpace('local'); 
-                    moveModeBtn.style.color = '#007bff'; 
-                    moveModeBtn.style.background = 'rgba(255,255,255,1)';
-                    moveModeBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-                    moveModeBtn.title = await t('ModeRotate') || 'Rotate Mode';
-                    break;
-
-                case 3: // 缩放 (Local 坐标)
-                    transformControl.setMode('scale');
-                    transformControl.setSpace('local'); 
-                    moveModeBtn.style.color = '#e83e8c'; 
-                    moveModeBtn.style.background = 'rgba(255,255,255,1)';
-                    moveModeBtn.innerHTML = '<i class="fas fa-compress-arrows-alt"></i>';
-                    // 提示用户拖拽中心
-                    moveModeBtn.title = await t('ModeScale') || 'Scale Mode (Drag CENTER box for uniform)';
-                    break;
-            }
-        }
-
-        // 悬停效果
-        moveModeBtn.addEventListener('mouseenter', () => {
-            moveModeBtn.style.transform = 'scale(1.1)';
-            moveModeBtn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-            showTooltip(moveModeBtn, moveModeBtn.title);
-        });
-        moveModeBtn.addEventListener('mouseleave', () => {
-            moveModeBtn.style.transform = 'scale(1)';
-            moveModeBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            hideTooltip();
-        });
-
-        // 键盘快捷键
-        document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            if (!currentVrm || typeof transformControl === 'undefined') return;
-            
-            if (e.code === 'Escape') { transformState = 0; updateTransformState(); return; }
-
-            if (transformState !== 0) {
-                switch(e.code) {
-                    case 'KeyT': transformState = 1; updateTransformState(); break;
-                    case 'KeyR': transformState = 2; updateTransformState(); break;
-                    case 'KeyS': transformState = 3; updateTransformState(); break;
-                }
-            }
-        });
-
-        // 拖拽按钮
+        // 1. 拖拽按钮
         const dragButton = document.createElement('div');
         dragButton.id = 'drag-handle';
         dragButton.style.cssText = `
-                width: ${btn_width}px;
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #333;
-                cursor: pointer;
-                -webkit-app-region: drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
+            width: ${btn_width}px; height: ${btn_height}px;
+            background: rgba(255,255,255,0.95); border: 2px solid rgba(0,0,0,0.1);
+            border-radius: 50%; color: #333; cursor: pointer; -webkit-app-region: drag;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform 0.2s; user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
         `;
-
-        // 创建一个内部拖拽区域来确保拖拽功能正常
         const dragArea = document.createElement('div');
-        dragArea.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            -webkit-app-region: drag;
-            z-index: 1;
-        `;
-
-        // 图标容器
+        dragArea.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; -webkit-app-region: drag; z-index: 1;`;
         const iconContainer = document.createElement('div');
         iconContainer.innerHTML = '<i class="fa-solid fa-arrows-up-down-left-right"></i>';
-        iconContainer.style.cssText = `
-            position: relative;
-            z-index: 2;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            -webkit-app-region: drag;
-        `;
-
-        // 直接设置img样式
-        const img = iconContainer.querySelector('img');
-        if (img) {
-            img.style.cssText = `
-                width: 24px;
-                height: 24px;
-                border: none;
-                vertical-align: middle;
-                object-fit: contain;
-            `;
-        }
-
-        // 组装拖拽按钮
-        dragButton.innerHTML = '';
+        iconContainer.style.cssText = `position: relative; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; -webkit-app-region: drag;`;
         dragButton.appendChild(dragArea);
         dragButton.appendChild(iconContainer);
-        // WebSocket 状态按钮
-        const wsStatusButton = document.createElement('div');
-        wsStatusButton.id = 'ws-status-handle';
-        wsStatusButton.innerHTML = '<i class="fas fa-wifi"></i>';
-        wsStatusButton.style.cssText = `
-            width: ${btn_width}px;
-            height: ${btn_height}px;
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1);
-            border-radius: 50%;
-            color: #333;
-            cursor: pointer;
-            -webkit-app-region: no-drag;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.2s ease;
-            user-select: none;
-            pointer-events: auto;
-            backdrop-filter: blur(10px);
-            color: ${wsConnected ? '#28a745' : '#dc3545'};
-        `;
-        // WebSocket 状态按钮事件
-        wsStatusButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (wsConnected) {
-                // 断开连接
-                if (ttsWebSocket) {
-                    ttsWebSocket.close();
-                }
-            } else {
-                // 重新连接
-                initTTSWebSocket();
-            }
-        });
-        // 添加悬停效果
-        wsStatusButton.addEventListener('mouseenter', () => {
-            wsStatusButton.style.background = 'rgba(255,255,255,1)';
-            wsStatusButton.style.transform = 'scale(1.1)';
-            wsStatusButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-        });
-        
-        wsStatusButton.addEventListener('mouseleave', () => {
-            wsStatusButton.style.background = 'rgba(255,255,255,0.95)';
-            wsStatusButton.style.transform = 'scale(1)';
-            wsStatusButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-        // 更新 WebSocket 状态显示
-        async function updateWSStatus() {
-            wsStatusButton.style.color = wsConnected ? '#28a745' : '#dc3545';
-            wsStatusButton.title = wsConnected ? await t('WebSocketConnected') :await t('WebSocketDisconnected');
-        }
 
-        // 定期更新状态
-        setInterval(updateWSStatus, 1000);
-        
-        
-
-            // 字幕开关按钮
-            const subtitleButton = document.createElement('div');
-            subtitleButton.id = 'subtitle-handle';
-            subtitleButton.innerHTML = '<i class="fas fa-closed-captioning"></i>';
-            subtitleButton.style.cssText = `
-                width: ${btn_width}px;
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #333;
-                cursor: pointer;
-                -webkit-app-region: no-drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
-                color: ${isSubtitleEnabled ? '#28a745' : '#dc3545'};
-            `;
-
-            // 添加悬停效果
-            subtitleButton.addEventListener('mouseenter', () => {
-                subtitleButton.style.background = 'rgba(255,255,255,1)';
-                subtitleButton.style.transform = 'scale(1.1)';
-                subtitleButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-            });
-
-            subtitleButton.addEventListener('mouseleave', () => {
-                subtitleButton.style.background = 'rgba(255,255,255,0.95)';
-                subtitleButton.style.transform = 'scale(1)';
-                subtitleButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            });
-
-            // 点击事件
-            subtitleButton.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                isSubtitleEnabled = !isSubtitleEnabled;
-                toggleSubtitle(isSubtitleEnabled);
-                subtitleButton.style.color = isSubtitleEnabled ? '#28a745' : '#dc3545';
-                subtitleButton.title = isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled');
-            });
-
-            // 初始状态
-            subtitleButton.title = isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled');
-
-            // 添加到控制面板
-
-        // 闲置动画模式切换按钮
-        const idleAnimationButton = document.createElement('div');
-        idleAnimationButton.id = 'idle-animation-handle';
-        idleAnimationButton.innerHTML = useVRMAIdleAnimations ? 
-            '<i class="fas fa-stop"></i>' : 
-            '<i class="fas fa-play"></i>';
-        idleAnimationButton.style.cssText = `
-            width: ${btn_width}px;
-            height: ${btn_height}px;
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1);
-            border-radius: 50%;
-            color: ${useVRMAIdleAnimations ? '#ff6b35' : '#28a745'};
-            cursor: pointer;
-            -webkit-app-region: no-drag;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.2s ease;
-            user-select: none;
-            pointer-events: auto;
-            backdrop-filter: blur(10px);
-        `;
-
-        // 添加悬停效果
-        idleAnimationButton.addEventListener('mouseenter', () => {
-            idleAnimationButton.style.background = 'rgba(255,255,255,1)';
-            idleAnimationButton.style.transform = 'scale(1.1)';
-            idleAnimationButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-        });
-
-        idleAnimationButton.addEventListener('mouseleave', () => {
-            idleAnimationButton.style.background = 'rgba(255,255,255,0.95)';
-            idleAnimationButton.style.transform = 'scale(1)';
-            idleAnimationButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        // 点击事件
-        idleAnimationButton.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // 防止重复点击
-            if (isIdleAnimationModeChanging) return;
-            
-            await toggleIdleAnimationMode();
-        });
-
-        // 初始状态
-        idleAnimationButton.title = useVRMAIdleAnimations ? 
-            await t('UsingVRMAAnimations') || 'Using VRMA Animations' : 
-            await t('UsingProceduralAnimations') || 'Using Procedural Animations';
-
-        // 添加到控制面板（在字幕按钮之后）
-
-        // 刷新按钮
-        const refreshButton = document.createElement('div');
-        refreshButton.id = 'refresh-handle';
-        refreshButton.innerHTML = '<i class="fas fa-redo-alt"></i>';
-        refreshButton.style.cssText = `
-                width: ${btn_width}px;
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #333;
-                cursor: pointer;
-                -webkit-app-region: no-drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
-        `;
-        // 获取所有模型（只执行一次）
-        await getAllModels();
-        
-        // 向上箭头按钮（切换到上一个模型）
-        const prevModelButton = document.createElement('div');
-        prevModelButton.id = 'prev-model-handle';
-        prevModelButton.innerHTML = '<i class="fas fa-chevron-up"></i>';
-        prevModelButton.style.cssText = `
-            width: ${btn_width}px;
-            height: ${btn_height}px;
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1);
-            border-radius: 50%;
-            color: #333;
-            cursor: pointer;
-            -webkit-app-region: no-drag;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.2s ease;
-            user-select: none;
-            pointer-events: auto;
-            backdrop-filter: blur(10px);
-        `;
-        
-        // 向下箭头按钮（切换到下一个模型）
-        const nextModelButton = document.createElement('div');
-        nextModelButton.id = 'next-model-handle';
-        nextModelButton.innerHTML = '<i class="fas fa-chevron-down"></i>';
-        nextModelButton.style.cssText = `
-            width: ${btn_width}px;
-            height: ${btn_height}px;
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1);
-            border-radius: 50%;
-            color: #333;
-            cursor: pointer;
-            -webkit-app-region: no-drag;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.2s ease;
-            user-select: none;
-            pointer-events: auto;
-            backdrop-filter: blur(10px);
-        `;
-        
-        // 添加悬停效果和工具提示 - 上一个模型按钮
-        prevModelButton.addEventListener('mouseenter', async () => {
-            prevModelButton.style.background = 'rgba(255,255,255,1)';
-            prevModelButton.style.transform = 'scale(1.1)';
-            prevModelButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-            
-            // 显示下一个模型的名称
-            const prevModel = getPrevModelInfo();
-            if (prevModel) {
-                prevModelButton.title = `${await t('Previous')}: ${prevModel.name}`;
-            }
-        });
-        
-        prevModelButton.addEventListener('mouseleave', () => {
-            prevModelButton.style.background = 'rgba(255,255,255,0.95)';
-            prevModelButton.style.transform = 'scale(1)';
-            prevModelButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-        
-        // 添加悬停效果和工具提示 - 下一个模型按钮
-        nextModelButton.addEventListener('mouseenter', async () => {
-            nextModelButton.style.background = 'rgba(255,255,255,1)';
-            nextModelButton.style.transform = 'scale(1.1)';
-            nextModelButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-            
-            // 显示下一个模型的名称
-            const nextModel = getNextModelInfo();
-            if (nextModel) {
-                nextModelButton.title = `${await t('Next')}: ${nextModel.name}`;
-            }
-        });
-        
-        nextModelButton.addEventListener('mouseleave', () => {
-            nextModelButton.style.background = 'rgba(255,255,255,0.95)';
-            nextModelButton.style.transform = 'scale(1)';
-            nextModelButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-        
-        // 上一个模型按钮点击事件
-        prevModelButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (allModels.length > 1) {
-                switchToModel(currentModelIndex - 1);
-            }
-        });
-        
-        // 下一个模型按钮点击事件
-        nextModelButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (allModels.length > 1) {
-                switchToModel(currentModelIndex + 1);
-            }
-        });
-        
-        // 设置按钮初始状态
-        async function initModelButtons() {
-            if (allModels.length <= 1) {
-                // 如果只有一个或没有模型，禁用按钮
-                prevModelButton.style.opacity = '0.5';
-                prevModelButton.style.cursor = 'not-allowed';
-                prevModelButton.title = 'No other models available';
-                
-                nextModelButton.style.opacity = '0.5';
-                nextModelButton.style.cursor = 'not-allowed';
-                nextModelButton.title = 'No other models available';
-            } else {
-                // 设置初始工具提示
-                const prevModel = getPrevModelInfo();
-                const nextModel = getNextModelInfo();
-                
-                prevModelButton.title = prevModel ? `Previous: ${prevModel.name}` : 'Previous Model';
-                nextModelButton.title = nextModel ? `Next: ${nextModel.name}` : 'Next Model';
-            }
-            
-            console.log(`Model buttons initialized. Current: ${getCurrentModelInfo()?.name || 'Unknown'} (${currentModelIndex + 1}/${allModels.length})`);
-        }
-        
-        initModelButtons();
-        
-
-        
-        console.log(`Model switching buttons added. Available models: ${allModels.length}`);
-        
-        // 关闭按钮
-        const closeButton = document.createElement('div');
-        closeButton.id = 'close-handle';
-        closeButton.innerHTML = '<i class="fas fa-times"></i>';
-        closeButton.style.cssText = `
-                width: ${btn_width}px;
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #333;
-                cursor: pointer;
-                -webkit-app-region: no-drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
-        `;
-        
-        // 添加悬停效果 - 刷新按钮
-        refreshButton.addEventListener('mouseenter', () => {
-            refreshButton.style.background = 'rgba(255,255,255,1)';
-            refreshButton.style.transform = 'scale(1.1)';
-            refreshButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-        });
-        
-        refreshButton.addEventListener('mouseleave', () => {
-            refreshButton.style.background = 'rgba(255,255,255,0.95)';
-            refreshButton.style.transform = 'scale(1)';
-            refreshButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        // 刷新按钮点击事件
-        refreshButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // 刷新页面
-            window.location.reload();
-        });
-        
-        // 添加悬停效果 - 关闭按钮
-        closeButton.addEventListener('mouseenter', () => {
-            closeButton.style.background = 'rgba(255,255,255,1)';
-            closeButton.style.transform = 'scale(1.1)';
-            closeButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-        });
-        
-        closeButton.addEventListener('mouseleave', () => {
-            closeButton.style.background = 'rgba(255,255,255,0.95)';
-            closeButton.style.transform = 'scale(1)';
-            closeButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        // 关闭按钮点击事件
-        closeButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.close();
-        });
-        async function initbutton() {
-            dragButton.title = await t('dragWindow');
-            refreshButton.title = await t('refreshWindow');
-            closeButton.title = await t('closeWindow');
-        }
-        initbutton();
-
-        // ↓↓↓ 新增：XR 自动按钮
-        const xrAutoBtn = document.createElement('div');
-        xrAutoBtn.id = 'xr-auto-btn';
-        xrAutoBtn.innerHTML = '<i class="fa-solid fa-vr-cardboard"></i>';
-        xrAutoBtn.style.cssText = `
-            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333;
-            cursor: pointer; -webkit-app-region: no-drag; display: flex;
-            align-items: center; justify-content: center; font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.2s ease;
-            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);`;
-
-        // 自动检测能力
-        let canAR = false, canVR = false;
-        Promise.all([
-            navigator.xr.isSessionSupported('immersive-ar').then(yes=>{ canAR=yes; console.log('AR?',yes); }),
-            navigator.xr.isSessionSupported('immersive-vr').then(yes=>{ canVR=yes; console.log('VR?',yes); })
-        ]).then(()=>{
-            console.log('final AR',canAR,'VR',canVR);
-            xrAutoBtn.style.display = (canAR || canVR) ? 'flex' : 'none';
-        });
-
-        let xrSession = null;
-        let xrRefSpace  = null; 
-        // 1. 启动会话时切到 XR 循环
-        xrAutoBtn.addEventListener('click', async () => {
-          if (renderer.xr.isPresenting) {           // 再按一次退出
-            await renderer.xr.getSession().end();
-            return;
-          }
-          const mode = canAR ?  'immersive-ar':'immersive-vr' ;
-          const session = await navigator.xr.requestSession(mode, {
-            optionalFeatures: ['local-floor', 'hit-test', 'dom-overlay'],
-            domOverlay: { root: document.body }      // 把整个 body 作为叠加层
-          });
-          renderer.xr.setSession(session);
-          xrSession = session;
-          session.requestReferenceSpace('local-floor').then(refSpace => {
-            xrRefSpace = refSpace;
-            // 关键：让浏览器把鼠标交给 XR
-            if (document.pointerLockElement !== renderer.domElement) {
-              renderer.domElement.requestPointerLock();
-            }
-          });
-          if (xrSession && document.pointerLockElement !== renderer.domElement) {
-                renderer.domElement.requestPointerLock();
-          }
-          // 重要：让 three 用 XR 帧循环，而不是 requestAnimationFrame
-          renderer.setAnimationLoop(xrAnimate);
-
-          if (currentVrm) {
-            currentVrm.scene.position.set(0, 0, -1);   // ← 关键：移动模型，不是相机
-          }
-        });
-
-        // 2. 会话结束回到普通循环
-        renderer.xr.addEventListener('sessionend', () => {
-          renderer.setAnimationLoop(null);          // 关掉 XR 循环
-          animate();                                // 重新用 RAF
-          xrSession = null;
-        });
-
-        // 3. XR 帧循环（直接把原 animate 内容搬过来）
-        function xrAnimate(time, frame) {
-          const delta = clock.getDelta();
-
-          if (currentVrm) currentVrm.update(delta);
-          if (currentMixer) currentMixer.update(delta);
-
-          // 关键：必须调用 renderer.render，否则 XR 不提交画面
-          renderer.render(scene, camera);
-        }
-        
-
-        // ★ VMC：VMC 协议管理按钮
-        const vmcButton = document.createElement('div');
-        vmcButton.id = 'vmc-handle';
-        vmcButton.innerHTML = '<i class="fas fa-broadcast-tower"></i>';
-        vmcButton.style.cssText = `
-            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333;
-            cursor: pointer; -webkit-app-region: no-drag; display: flex;
-            align-items: center; justify-content: center; font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.2s ease;
-            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);`;
-        
-        let vmcApp = null;          // Vue 实例
-        let vmcWrapper = null;      // 挂载的 DOM 节点
-        vmcButton.addEventListener('click', async () => {
-            // 如果已经打开，直接关掉并返回
-            if (vmcApp) {
-                vmcApp.unmount();
-                document.body.removeChild(vmcWrapper);
-                vmcApp  = null;
-                vmcWrapper = null;
-                return;
-            }
-
-            // 否则正常创建
-            const cfg = await window.electronAPI.getVMCConfig();
-            const { ElDialog, ElForm, ElFormItem, ElInput, ElSwitch, ElButton, ElInputNumber } = ElementPlus;
-
-            vmcWrapper = document.createElement('div');
-            document.body.appendChild(vmcWrapper);
-
-            vmcApp = Vue.createApp({
-                data() {
-                    return {
-                        dialogVisible: true,
-                        form: {
-                            receive: {
-                                enable: cfg.receive.enable,
-                                port: cfg.receive.port,
-                                syncExpression: cfg.receive.syncExpression
-                            },
-                            send: {
-                                enable: cfg.send.enable,
-                                host: cfg.send.host,
-                                port: cfg.send.port
-                            }
-                        },
-                        // 翻译文本
-                        translations: {
-                            title: '',
-                            receiveEnable: '',
-                            receivePort: '',
-                            sendEnable: '',
-                            sendHost: '',
-                            sendPort: '',
-                            cancelButton: '',
-                            saveButton: ''
-                        }
-                    }
-                },
-                async mounted() {
-                    // 初始化翻译文本
-                    this.translations.title = await t('vmcSettings');
-                    this.translations.receiveEnable = await t('vmcReceiveEnable');
-                    this.translations.receivePort = await t('vmcReceivePort');
-                    this.translations.sendEnable = await t('vmcSendEnable');
-                    this.translations.sendHost = await t('vmcSendHost');
-                    this.translations.sendPort = await t('vmcSendPort');
-                    this.translations.cancelButton = await t('cancel');
-                    this.translations.saveButton = await t('save');
-                    this.translations.syncExpression =  await t('syncExpression')
-                },
-                methods: {
-                async saveConfig() {
-                    await window.electronAPI.setVMCConfig({
-                    receive: { enable: this.form.receive.enable, port: this.form.receive.port ,syncExpression: this.form.receive.syncExpression },
-                    send:    { enable: this.form.send.enable,    host: this.form.send.host, port: this.form.send.port }
-                    });
-                    setVMCReceive(this.form.receive.enable, this.form.receive.syncExpression);
-                    this.close();
-                },
-                cancel() { this.close(); },
-                close() {
-                    this.dialogVisible = false;
-                    vmcApp.unmount();
-                    document.body.removeChild(vmcWrapper);
-                    vmcApp  = null;
-                    vmcWrapper = null;
-                }
-                },
-                template: `
-                    <el-dialog
-                        v-model="dialogVisible"
-                        :title="translations.title"
-                        width="420px"
-                        :modal="false"
-                        :close-on-click-modal="false"
-                        append-to-body
-                        custom-class="vmc-dialog"
-                        @close="close"
-                        style="  background: rgba(255, 255, 255, 0.25) !important;backdrop-filter: blur(20px);border-radius: 20px !important;"
-                    >
-                        <div style="padding: 0 10px;">
-                            <!-- 接收设置 -->
-                            <div style="margin-bottom: 20px; padding: 15px; background: rgba(245, 247, 250, 0.75)!important; border-radius: 20px;">
-                                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                                    <el-switch v-model="form.receive.enable"></el-switch>
-                                    <span style="margin-left: 10px; font-weight: 500;">{{ translations.receiveEnable }}</span>
-                                </div>
-                                <div style="display:flex;align-items:center;margin-top:8px;">
-                                    <el-switch v-model="form.receive.syncExpression"></el-switch>
-                                    <span style="margin-left:10px;font-size:14px;">{{ translations.syncExpression }}</span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span style="width: 100px;margin-right:30px; font-size: 14px;">{{ translations.receivePort }}:</span>
-                                    <el-input-number 
-                                        v-model="form.receive.port" 
-                                        :min="1024" 
-                                        :max="65535"
-                                        controls-position="right"
-                                        style="width: 200px;"
-                                    ></el-input-number>
-                                </div>
-                            </div>
-                            
-                            <!-- 发送设置 -->
-                            <div style="margin-bottom: 20px; padding: 15px; background: rgba(245, 247, 250, 0.75)!important; border-radius: 20px;">
-                                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                                    <el-switch v-model="form.send.enable"></el-switch>
-                                    <span style="margin-left: 10px;margin-right:30px; font-weight: 500;">{{ translations.sendEnable }}</span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                    <span style="width: 100px; margin-right:30px;font-size: 14px;">{{ translations.sendHost }}:</span>
-                                    <el-input 
-                                        v-model="form.send.host" 
-                                        style="width: 200px;"
-                                    ></el-input>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span style="width: 100px;margin-right:30px; font-size: 14px;">{{ translations.sendPort }}:</span>
-                                    <el-input-number 
-                                        v-model="form.send.port" 
-                                        :min="1024" 
-                                        :max="65535"
-                                        controls-position="right"
-                                        style="width: 200px;"
-                                    ></el-input-number>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <template #footer>
-                            <div style="text-align: right;">
-                                <el-button @click="cancel" style="margin-right: 10px;">{{ translations.cancelButton }}</el-button>
-                                <el-button type="primary" @click="saveConfig">{{ translations.saveButton }}</el-button>
-                            </div>
-                        </template>
-                    </el-dialog>
-                `
-            });
-            
-            vmcApp.use(ElementPlus);
-            vmcApp.mount(vmcWrapper);
-        });
-
-
-        // 保存所有需要隐藏的按钮引用
-        const controlButtons = [];
-        // 鼠标穿透锁定按钮
+        // 2. 锁定按钮逻辑
         const lockButton = document.createElement('div');
         lockButton.id = 'lock-handle';
-        let isMouseLocked = false; // 初始状态为解锁（不穿透）
+        let isMouseLocked = false;
+        const controlButtons = []; // 保存所有需要被隐藏的按钮
 
-        // 初始化状态
         async function initLockButton() {
             lockButton.innerHTML = '<i class="fas fa-lock-open"></i>';
             lockButton.style.cssText = `
-                width: ${btn_width}px; 
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #28a745;
-                cursor: pointer;
-                -webkit-app-region: no-drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
+                width: ${btn_width}px; height: ${btn_height}px;
+                background: rgba(255,255,255,0.95); border: 2px solid rgba(0,0,0,0.1);
+                border-radius: 50%; color: #28a745; cursor: pointer; -webkit-app-region: no-drag;
+                display: flex; align-items: center; justify-content: center; font-size: 14px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+                user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
             `;
-            
             lockButton.title = await t('UnlockWindow');
             updateLockButtonState();
         }
 
-        // 更新锁定按钮状态
         async function updateLockButtonState() {
             if (isMouseLocked) {
                 lockButton.innerHTML = '<i class="fas fa-lock"></i>';
@@ -3399,111 +2606,161 @@ function addcontrolPanel() {
             }
         }
 
-        // 隐藏所有其他按钮（除了锁定按钮）
         function hideOtherButtons() {
+            // 如果子面板开着，强制关闭
+            if (isSubPanelOpen) {
+                isSubPanelOpen = false;
+                updateMoreButtonState();
+            }
             controlButtons.forEach(button => {
-                if (button !== lockButton) {
-                    button.style.opacity = '0';
-                    button.style.visibility = 'hidden';
-                    button.style.pointerEvents = 'none';
-                    button.style.transform = 'scale(0.8)';
+                if (button && button !== lockButton) {
+                    button.style.display = 'none'; // 直接隐藏，让布局自然收缩
                 }
             });
-            
-            // 调整锁定按钮位置到中心
             lockButton.style.marginBottom = '0';
             lockButton.style.marginTop = 'auto';
         }
 
-        // 显示所有按钮
         function showAllButtons() {
             controlButtons.forEach(button => {
-                button.style.opacity = '1';
-                button.style.visibility = 'visible';
-                button.style.pointerEvents = 'auto';
-                button.style.transform = 'scale(1)';
+                if (button && button !== lockButton) {
+                    button.style.display = 'flex';
+                    button.style.opacity = '1';
+                    button.style.visibility = 'visible';
+                    button.style.transform = 'scale(1)';
+                }
             });
-            
+            lockButton.style.marginBottom = '';
+            lockButton.style.marginTop = '';
         }
 
-        /**
-         * 处理鼠标悬停检测 - 使用Raycaster检测鼠标是否在模型上
-         * 灵敏度调整说明：
-         * 1. 修改 HOVER_CHECK_INTERVAL 可调整检测频率（值越小越敏感，但消耗更多性能）
-         * 2. 修改 raycaster.params.Points.threshold 可调整射线检测距离
-         * 3. 在 intersects.length > 0 判断处可添加距离过滤，如 intersects[0].distance < 某个值
-         */
+        lockButton.addEventListener('mouseenter', () => {
+            lockButton.style.background = 'rgba(255,255,255,1)';
+            lockButton.style.transform = 'scale(1.1)';
+            lockButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+        });
+        lockButton.addEventListener('mouseleave', () => {
+            lockButton.style.background = 'rgba(255,255,255,0.95)';
+            lockButton.style.transform = 'scale(1)';
+            lockButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        lockButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleMouseLock();
+        });
+
+        async function toggleMouseLock() {
+            isMouseLocked = !isMouseLocked;
+            if (isMouseLocked) {
+                window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+                hideOtherButtons();
+            } else {
+                window.electronAPI.setIgnoreMouseEvents(false);
+                showAllButtons();
+            }
+            updateLockButtonState();
+            sendToMain('mouseLockStatus', { locked: isMouseLocked });
+            updateButtonTooltips();
+        }
+        await initLockButton();
+
+        // 3. 自动隐藏按钮
+        const hideButton = document.createElement('div');
+        hideButton.id = 'hide-handle';
+        let isAutoHideActive = false; 
+        let autoHideDisabledByPointerLock = false; 
+
+        async function initHideButton() {
+            hideButton.innerHTML = '<i class="fas fa-eye"></i>';
+            hideButton.style.cssText = `
+                width: ${btn_width}px; height: ${btn_height}px;
+                background: rgba(255,255,255,0.95); border: 2px solid rgba(0,0,0,0.1);
+                border-radius: 50%; color: #6c757d; cursor: pointer; -webkit-app-region: no-drag;
+                display: flex; align-items: center; justify-content: center; font-size: 14px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+                user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+            `;
+            const hideDesc = await t('AutoHideDescription');
+            hideButton.title = hideDesc || '鼠标悬停自动隐藏';
+            updateHideButtonState();
+        }
+
+        async function updateHideButtonState() {
+            if (isAutoHideActive) {
+                hideButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                hideButton.style.color = '#ffc107';
+                hideButton.title = await t('AutoHideEnabled') || '自动隐藏已启用，点击关闭';
+            } else {
+                hideButton.innerHTML = '<i class="fas fa-eye"></i>';
+                hideButton.style.color = '#6c757d';
+                hideButton.title = await t('AutoHideDescription') || '鼠标悬停自动隐藏，点击启用';
+            }
+        }
+
+        async function toggleAutoHide() {
+            if (pointerLocked && !isAutoHideActive) {
+                console.warn('Auto hide is disabled in first-person mode');
+                return;
+            }
+            isAutoHideActive = !isAutoHideActive;
+            if (isAutoHideActive) enableAutoHide();
+            else disableAutoHide();
+            updateHideButtonState();
+            sendToMain('autoHideStatus', { enabled: isAutoHideActive });
+        }
+
+        hideButton.addEventListener('mouseenter', () => {
+            hideButton.style.background = 'rgba(255,255,255,1)';
+            hideButton.style.transform = 'scale(1.1)';
+            hideButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+        });
+        hideButton.addEventListener('mouseleave', () => {
+            hideButton.style.background = 'rgba(255,255,255,0.95)';
+            hideButton.style.transform = 'scale(1)';
+            hideButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        hideButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleAutoHide();
+        });
+        await initHideButton();
+
         function handleModelHoverDetection(event) {
             if (!currentVrm || !isAutoHideEnabled || pointerLocked) return;
-            
-            // 清除之前的防抖定时器
-            if (hoverCheckTimeout) {
-                clearTimeout(hoverCheckTimeout);
-            }
-            
-            // 使用防抖避免频繁计算
+            if (hoverCheckTimeout) clearTimeout(hoverCheckTimeout);
             hoverCheckTimeout = setTimeout(() => {
-                // 计算鼠标位置的标准化设备坐标 (-1 到 +1)
                 mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-                
-                // 通过摄像机和鼠标位置更新射线
                 raycaster.setFromCamera(mouse, camera);
-                
-                // 检测射线与模型的交点
                 const intersects = raycaster.intersectObject(currentVrm.scene, true);
-                
-                // 判断是否悬停在模型上
                 const nowHovered = intersects.length > 0;
-                
-                // 状态改变时执行隐藏/显示动画
                 if (nowHovered !== isModelHiddenByHover) {
                     isModelHiddenByHover = nowHovered;
-                    
-                    if (nowHovered) {
-                        hideModelWithTransition();
-                    } else {
-                        showModelWithTransition();
-                    }
+                    if (nowHovered) hideModelWithTransition();
+                    else showModelWithTransition();
                 }
             }, HOVER_CHECK_INTERVAL);
         }
 
-        // 鼠标离开窗口时重置自动隐藏状态
         function handleMouseLeaveWindow(event) {
-            // 仅在完全离开文档（relatedTarget 为空）时处理
             if (!event.relatedTarget && isAutoHideEnabled) {
                 isModelHiddenByHover = false;
                 showModelWithTransition();
             }
         }
-        
-        /**
-         * 使用渐变效果隐藏模型窗口：淡出 WebGL 画布并让后面的界面可点击
-         */
+
         function hideModelWithTransition() {
             if (!renderer || !renderer.domElement) return;
-
             const canvas = renderer.domElement;
             canvas.style.transition = `opacity ${FADE_DURATION}ms ease`;
             pauseModelAnimationsForHide();
-
-            // 清理未完成的隐藏定时器，避免后置覆盖
-            if (hideTransitionTimer) {
-                clearTimeout(hideTransitionTimer);
-                hideTransitionTimer = null;
-            }
-
-            // 开始淡出
-            requestAnimationFrame(() => {
-                canvas.style.opacity = '0';
-            });
-
-            // 淡出完成后关闭交互，允许点击穿透
+            if (hideTransitionTimer) { clearTimeout(hideTransitionTimer); hideTransitionTimer = null; }
+            requestAnimationFrame(() => { canvas.style.opacity = '0'; });
             hideTransitionTimer = setTimeout(() => {
                 canvas.style.pointerEvents = 'none';
                 if (currentVrm) currentVrm.scene.visible = false;
-                // 让整个窗口鼠标穿透，转发到底层（仅 Electron 生效）
                 if (isElectron && !isMouseLocked && window.electronAPI?.setIgnoreMouseEvents) {
                     window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
                 }
@@ -3511,418 +2768,547 @@ function addcontrolPanel() {
             }, FADE_DURATION + 10);
         }
 
-        /**
-         * 使用渐变效果显示模型窗口：淡入 WebGL 画布并恢复交互
-         */
         function showModelWithTransition() {
             if (!renderer || !renderer.domElement) return;
-
             const canvas = renderer.domElement;
             canvas.style.transition = `opacity ${FADE_DURATION}ms ease`;
             canvas.style.pointerEvents = 'auto';
-            canvas.style.opacity = '0'; // 确保从 0 开始
+            canvas.style.opacity = '0'; 
             if (currentVrm) currentVrm.scene.visible = true;
             resumeModelAnimationsAfterHide();
-
-            // 若有待执行的隐藏计时器，先清掉以防后续覆盖
-            if (hideTransitionTimer) {
-                clearTimeout(hideTransitionTimer);
-                hideTransitionTimer = null;
-            }
-
-            requestAnimationFrame(() => {
-                canvas.style.opacity = '1';
-            });
-
-            // 恢复结束后保持正常交互
+            if (hideTransitionTimer) { clearTimeout(hideTransitionTimer); hideTransitionTimer = null; }
+            requestAnimationFrame(() => { canvas.style.opacity = '1'; });
             setTimeout(() => {
                 canvas.style.pointerEvents = 'auto';
-                // 只有在未锁定窗口时，恢复正常鼠标事件（Electron）
                 if (isElectron && !isMouseLocked && window.electronAPI?.setIgnoreMouseEvents) {
                     window.electronAPI.setIgnoreMouseEvents(false);
                 }
             }, FADE_DURATION + 10);
         }
-        
-        /**
-         * 启用自动隐藏功能
-         */
+
         function enableAutoHide() {
             if (isAutoHideEnabled) return;
-            
             isAutoHideEnabled = true;
             isModelHiddenByHover = false;
             controlsEnabledBeforeAutoHide = controls.enabled;
-            controls.enabled = false; // 禁止拖动模型以避免与自动隐藏冲突
-            
-            // 添加鼠标移动事件监听
+            controls.enabled = false;
             document.addEventListener('mousemove', handleModelHoverDetection);
             document.addEventListener('mouseleave', handleMouseLeaveWindow);
-            
-            console.log('自动隐藏功能已启用');
         }
-        
-        /**
-         * 禁用自动隐藏功能
-         */
+
         function disableAutoHide() {
             if (!isAutoHideEnabled) return;
-            
             isAutoHideEnabled = false;
             isModelHiddenByHover = false;
             controls.enabled = controlsEnabledBeforeAutoHide;
-            
-            // 移除鼠标移动事件监听
             document.removeEventListener('mousemove', handleModelHoverDetection);
             document.removeEventListener('mouseleave', handleMouseLeaveWindow);
-            
-            // 清除防抖定时器
-            if (hoverCheckTimeout) {
-                clearTimeout(hoverCheckTimeout);
-                hoverCheckTimeout = null;
-            }
-            
-            // 恢复模型完全可见
+            if (hoverCheckTimeout) { clearTimeout(hoverCheckTimeout); hoverCheckTimeout = null; }
             showModelWithTransition();
-            
-            console.log('自动隐藏功能已禁用');
         }
+
+        // 4. 切换模型按钮
+        await getAllModels();
+        const prevModelButton = document.createElement('div');
+        prevModelButton.id = 'prev-model-handle';
+        prevModelButton.innerHTML = '<i class="fas fa-chevron-up"></i>';
+        prevModelButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
         
-        // 切换锁定状态
-        async function toggleMouseLock() {
-            isMouseLocked = !isMouseLocked;
-            
-            if (isMouseLocked) {
-                // 锁定模式：窗口穿透，隐藏其他按钮
-                window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
-                hideOtherButtons();
+        const nextModelButton = document.createElement('div');
+        nextModelButton.id = 'next-model-handle';
+        nextModelButton.innerHTML = '<i class="fas fa-chevron-down"></i>';
+        nextModelButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
+
+        prevModelButton.addEventListener('mouseenter', async () => {
+            prevModelButton.style.background = 'rgba(255,255,255,1)';
+            prevModelButton.style.transform = 'scale(1.1)';
+            prevModelButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+            const prevModel = getPrevModelInfo();
+            if (prevModel) prevModelButton.title = `${await t('Previous')}: ${prevModel.name}`;
+        });
+        prevModelButton.addEventListener('mouseleave', () => {
+            prevModelButton.style.background = 'rgba(255,255,255,0.95)';
+            prevModelButton.style.transform = 'scale(1)';
+            prevModelButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        nextModelButton.addEventListener('mouseenter', async () => {
+            nextModelButton.style.background = 'rgba(255,255,255,1)';
+            nextModelButton.style.transform = 'scale(1.1)';
+            nextModelButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+            const nextModel = getNextModelInfo();
+            if (nextModel) nextModelButton.title = `${await t('Next')}: ${nextModel.name}`;
+        });
+        nextModelButton.addEventListener('mouseleave', () => {
+            nextModelButton.style.background = 'rgba(255,255,255,0.95)';
+            nextModelButton.style.transform = 'scale(1)';
+            nextModelButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        prevModelButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (allModels.length > 1) switchToModel(currentModelIndex - 1); });
+        nextModelButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (allModels.length > 1) switchToModel(currentModelIndex + 1); });
+
+        async function initModelButtons() {
+            if (allModels.length <= 1) {
+                prevModelButton.style.opacity = '0.5'; prevModelButton.style.cursor = 'not-allowed'; prevModelButton.title = 'No other models available';
+                nextModelButton.style.opacity = '0.5'; nextModelButton.style.cursor = 'not-allowed'; nextModelButton.title = 'No other models available';
             } else {
-                // 解锁模式：窗口正常交互，显示所有按钮
-                window.electronAPI.setIgnoreMouseEvents(false);
-                showAllButtons();
+                const prevModel = getPrevModelInfo();
+                const nextModel = getNextModelInfo();
+                prevModelButton.title = prevModel ? `Previous: ${prevModel.name}` : 'Previous Model';
+                nextModelButton.title = nextModel ? `Next: ${nextModel.name}` : 'Next Model';
             }
-            
-            updateLockButtonState();
-            
-            // 发送状态更新到主窗口
-            sendToMain('mouseLockStatus', { locked: isMouseLocked });
-            
-            // 更新工具提示
-            updateButtonTooltips();
         }
+        initModelButtons();
 
+        // 5. 新增的“更多功能”按钮
+        const moreButton = document.createElement('div');
+        moreButton.id = 'more-handle';
+        let isSubPanelOpen = false;
+        moreButton.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
+        moreButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
 
-        // 添加事件监听
-        lockButton.addEventListener('mouseenter', () => {
-            lockButton.style.background = 'rgba(255,255,255,1)';
-            lockButton.style.transform = 'scale(1.1)';
-            lockButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-        });
-
-        lockButton.addEventListener('mouseleave', () => {
-            lockButton.style.background = 'rgba(255,255,255,0.95)';
-            lockButton.style.transform = 'scale(1)';
-            lockButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        lockButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleMouseLock();
-        });
-
-        // 在控制面板鼠标事件中添加特殊处理
-        controlPanel.addEventListener('mouseenter', () => {
-            if (isMouseLocked) {
-                // 在锁定模式下，控制面板保持可交互
-                window.electronAPI.setIgnoreMouseEvents(false);
-            }
-        });
-
-        controlPanel.addEventListener('mouseleave', () => {
-            if (isMouseLocked) {
-                // 离开控制面板时恢复穿透
-                window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
-            }
-        });
-
-        // 在组装控制面板时添加锁定按钮
-        await initLockButton();
-
-        // 自动隐藏按钮
-        const hideButton = document.createElement('div');
-        hideButton.id = 'hide-handle';
-        let isAutoHideActive = false; // 自动隐藏功能状态
-        let autoHideDisabledByPointerLock = false; // 记录是否因第一人称暂时关闭
-
-        // 初始化自动隐藏按钮
-        async function initHideButton() {
-            hideButton.innerHTML = '<i class="fas fa-eye"></i>';
-            hideButton.style.cssText = `
-                width: ${btn_width}px; 
-                height: ${btn_height}px;
-                background: rgba(255,255,255,0.95);
-                border: 2px solid rgba(0,0,0,0.1);
-                border-radius: 50%;
-                color: #6c757d;
-                cursor: pointer;
-                -webkit-app-region: no-drag;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                user-select: none;
-                pointer-events: auto;
-                backdrop-filter: blur(10px);
-            `;
-            
-            const hideDesc = await t('AutoHideDescription');
-            hideButton.title = hideDesc || '鼠标悬停自动隐藏';
-            updateHideButtonState();
-        }
-
-        // 更新自动隐藏按钮状态
-        async function updateHideButtonState() {
-            if (isAutoHideActive) {
-                hideButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
-                hideButton.style.color = '#ffc107';
-                const enabledText = await t('AutoHideEnabled');
-                hideButton.title = enabledText || '自动隐藏已启用，点击关闭';
+        async function updateMoreButtonState() {
+            if (isSubPanelOpen) {
+                subPanel.style.opacity = '1';
+                subPanel.style.visibility = 'visible';
+                subPanel.style.transform = 'translateX(0) scale(1)'; 
+                subPanel.style.pointerEvents = 'auto';
+                moreButton.innerHTML = '<i class="fas fa-caret-right"></i>';
+                moreButton.style.color = '#007bff';
+                moreButton.title = await t('collapse') || '收起面板';
             } else {
-                hideButton.innerHTML = '<i class="fas fa-eye"></i>';
-                hideButton.style.color = '#6c757d';
-                const disabledText = await t('AutoHideDescription');
-                hideButton.title = disabledText || '鼠标悬停自动隐藏，点击启用';
+                subPanel.style.opacity = '0';
+                subPanel.style.visibility = 'hidden';
+                subPanel.style.transform = 'translateX(10px) scale(1)';
+                subPanel.style.pointerEvents = 'none';
+                moreButton.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
+                moreButton.style.color = '#333';
+                moreButton.title = await t('MoreOptions') || '更多功能';
             }
+            showTooltip(moreButton, moreButton.title);
         }
 
-        // 切换自动隐藏功能
-        async function toggleAutoHide() {
-            if (pointerLocked && !isAutoHideActive) {
-                console.warn('Auto hide is disabled in first-person mode');
-                return;
+        moreButton.addEventListener('click', async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            isSubPanelOpen = !isSubPanelOpen;
+            updateMoreButtonState();
+        });
+
+        moreButton.addEventListener('mouseenter', async () => {
+            moreButton.style.background = 'rgba(255,255,255,1)';
+            moreButton.style.transform = 'scale(1.1)';
+            moreButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+            if (!moreButton.title) moreButton.title = await t('MoreOptions') || '更多功能';
+            showTooltip(moreButton, moreButton.title);
+        });
+        moreButton.addEventListener('mouseleave', () => {
+            moreButton.style.background = 'rgba(255,255,255,0.95)';
+            moreButton.style.transform = 'scale(1)';
+            moreButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            hideTooltip();
+        });
+
+        // 6. 刷新与关闭按钮
+        const refreshButton = document.createElement('div');
+        refreshButton.id = 'refresh-handle';
+        refreshButton.innerHTML = '<i class="fas fa-redo-alt"></i>';
+        refreshButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
+        refreshButton.addEventListener('mouseenter', () => {
+            refreshButton.style.background = 'rgba(255,255,255,1)'; refreshButton.style.transform = 'scale(1.1)'; refreshButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+        });
+        refreshButton.addEventListener('mouseleave', () => {
+            refreshButton.style.background = 'rgba(255,255,255,0.95)'; refreshButton.style.transform = 'scale(1)'; refreshButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        refreshButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.location.reload(); });
+
+        const closeButton = document.createElement('div');
+        closeButton.id = 'close-handle';
+        closeButton.innerHTML = '<i class="fas fa-times"></i>';
+        closeButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
+        closeButton.addEventListener('mouseenter', () => {
+            closeButton.style.background = 'rgba(255,255,255,1)'; closeButton.style.transform = 'scale(1.1)'; closeButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+        });
+        closeButton.addEventListener('mouseleave', () => {
+            closeButton.style.background = 'rgba(255,255,255,0.95)'; closeButton.style.transform = 'scale(1)'; closeButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        });
+        closeButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.close(); });
+
+        // ======= 以下为收纳在子面板中的按钮 =======
+
+        // 子 1. 调整模式按钮
+        const moveModeBtn = document.createElement('div');
+        moveModeBtn.id = 'move-mode-handle';
+        let transformState = 0; 
+        moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>'; 
+        moveModeBtn.title = await t('ModeOff') || 'Mode: Off'; 
+        moveModeBtn.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer; 
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; 
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
+        moveModeBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (!currentVrm) return;
+            transformState = (transformState + 1) % 4;
+            updateTransformState();
+        });
+        async function updateTransformState() {
+            if (typeof transformControl === 'undefined') return;
+            if (transformState !== 0 && currentVrmWrapper) transformControl.attach(currentVrmWrapper);
+            switch (transformState) {
+                case 0: transformControl.detach(); moveModeBtn.style.color = '#333'; moveModeBtn.style.background = 'rgba(255,255,255,0.95)'; moveModeBtn.innerHTML = '<i class="fa-solid fa-cube"></i>'; moveModeBtn.title = await t('ModeOff') || 'Mode: Off'; break;
+                case 1: transformControl.setMode('translate'); transformControl.setSpace('world'); moveModeBtn.style.color = '#ff6b35'; moveModeBtn.style.background = 'rgba(255,255,255,1)'; moveModeBtn.innerHTML = '<i class="fa-solid fa-arrows-left-right-to-line"></i>'; moveModeBtn.title = await t('ModeMove') || 'Move Mode'; break;
+                case 2: transformControl.setMode('rotate'); transformControl.setSpace('local'); moveModeBtn.style.color = '#007bff'; moveModeBtn.style.background = 'rgba(255,255,255,1)'; moveModeBtn.innerHTML = '<i class="fas fa-sync-alt"></i>'; moveModeBtn.title = await t('ModeRotate') || 'Rotate Mode'; break;
+                case 3: transformControl.setMode('scale'); transformControl.setSpace('local'); moveModeBtn.style.color = '#e83e8c'; moveModeBtn.style.background = 'rgba(255,255,255,1)'; moveModeBtn.innerHTML = '<i class="fas fa-compress-arrows-alt"></i>'; moveModeBtn.title = await t('ModeScale') || 'Scale Mode'; break;
             }
-            isAutoHideActive = !isAutoHideActive;
-            
-            if (isAutoHideActive) {
-                enableAutoHide();
-            } else {
-                disableAutoHide();
+        }
+        moveModeBtn.addEventListener('mouseenter', () => { moveModeBtn.style.transform = 'scale(1.1)'; moveModeBtn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; showTooltip(moveModeBtn, moveModeBtn.title); });
+        moveModeBtn.addEventListener('mouseleave', () => { moveModeBtn.style.transform = 'scale(1)'; moveModeBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; hideTooltip(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (!currentVrm || typeof transformControl === 'undefined') return;
+            if (e.code === 'Escape') { transformState = 0; updateTransformState(); return; }
+            if (transformState !== 0) {
+                switch(e.code) { case 'KeyT': transformState = 1; updateTransformState(); break; case 'KeyR': transformState = 2; updateTransformState(); break; case 'KeyS': transformState = 3; updateTransformState(); break; }
             }
-            
-            updateHideButtonState();
-            
-            // 发送状态更新到主窗口
-            sendToMain('autoHideStatus', { enabled: isAutoHideActive });
-            
-            console.log(`自动隐藏功能${isAutoHideActive ? '已启用' : '已禁用'}`);
+        });
+
+        // 子 2. WS 状态
+        const wsStatusButton = document.createElement('div');
+        wsStatusButton.id = 'ws-status-handle';
+        wsStatusButton.innerHTML = '<i class="fas fa-wifi"></i>';
+        wsStatusButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+            color: ${wsConnected ? '#28a745' : '#dc3545'};
+        `;
+        wsStatusButton.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (wsConnected) { if (ttsWebSocket) ttsWebSocket.close(); } else { initTTSWebSocket(); }
+        });
+        wsStatusButton.addEventListener('mouseenter', () => { wsStatusButton.style.background = 'rgba(255,255,255,1)'; wsStatusButton.style.transform = 'scale(1.1)'; wsStatusButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; });
+        wsStatusButton.addEventListener('mouseleave', () => { wsStatusButton.style.background = 'rgba(255,255,255,0.95)'; wsStatusButton.style.transform = 'scale(1)'; wsStatusButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; });
+        async function updateWSStatus() { wsStatusButton.style.color = wsConnected ? '#28a745' : '#dc3545'; wsStatusButton.title = wsConnected ? await t('WebSocketConnected') : await t('WebSocketDisconnected'); }
+        setInterval(updateWSStatus, 1000);
+
+        // 子 3. 字幕按钮
+        const subtitleButton = document.createElement('div');
+        subtitleButton.id = 'subtitle-handle';
+        subtitleButton.innerHTML = '<i class="fas fa-closed-captioning"></i>';
+        subtitleButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer;
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+            color: ${isSubtitleEnabled ? '#28a745' : '#dc3545'};
+        `;
+        subtitleButton.addEventListener('mouseenter', () => { subtitleButton.style.background = 'rgba(255,255,255,1)'; subtitleButton.style.transform = 'scale(1.1)'; subtitleButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; });
+        subtitleButton.addEventListener('mouseleave', () => { subtitleButton.style.background = 'rgba(255,255,255,0.95)'; subtitleButton.style.transform = 'scale(1)'; subtitleButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; });
+        subtitleButton.addEventListener('click', async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            isSubtitleEnabled = !isSubtitleEnabled;
+            toggleSubtitle(isSubtitleEnabled);
+            subtitleButton.style.color = isSubtitleEnabled ? '#28a745' : '#dc3545';
+            subtitleButton.title = isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled');
+        });
+
+        // 子 4. 闲置动画按钮
+        const idleAnimationButton = document.createElement('div');
+        idleAnimationButton.id = 'idle-animation-handle';
+        idleAnimationButton.innerHTML = useVRMAIdleAnimations ? '<i class="fas fa-stop"></i>' : '<i class="fas fa-play"></i>';
+        idleAnimationButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: ${useVRMAIdleAnimations ? '#ff6b35' : '#28a745'};
+            cursor: pointer; -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
+        `;
+        idleAnimationButton.addEventListener('mouseenter', () => { idleAnimationButton.style.background = 'rgba(255,255,255,1)'; idleAnimationButton.style.transform = 'scale(1.1)'; idleAnimationButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; });
+        idleAnimationButton.addEventListener('mouseleave', () => { idleAnimationButton.style.background = 'rgba(255,255,255,0.95)'; idleAnimationButton.style.transform = 'scale(1)'; idleAnimationButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; });
+        idleAnimationButton.addEventListener('click', async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (isIdleAnimationModeChanging) return;
+            await toggleIdleAnimationMode();
+        });
+
+        // 子 5. XR 按钮
+        const xrAutoBtn = document.createElement('div');
+        xrAutoBtn.id = 'xr-auto-btn';
+        xrAutoBtn.innerHTML = '<i class="fa-solid fa-vr-cardboard"></i>';
+        xrAutoBtn.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer; 
+            -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; 
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px); display: none;`;
+        let canAR = false, canVR = false;
+        Promise.all([
+            navigator.xr.isSessionSupported('immersive-ar').then(yes=>{ canAR=yes; }),
+            navigator.xr.isSessionSupported('immersive-vr').then(yes=>{ canVR=yes; })
+        ]).then(()=>{ xrAutoBtn.style.display = (canAR || canVR) ? 'flex' : 'none'; });
+        let xrSession = null;
+        let xrRefSpace = null;
+        xrAutoBtn.addEventListener('click', async () => {
+          if (renderer.xr.isPresenting) { await renderer.xr.getSession().end(); return; }
+          const mode = canAR ? 'immersive-ar' : 'immersive-vr';
+          const session = await navigator.xr.requestSession(mode, { optionalFeatures: ['local-floor', 'hit-test', 'dom-overlay'], domOverlay: { root: document.body } });
+          renderer.xr.setSession(session);
+          xrSession = session;
+          session.requestReferenceSpace('local-floor').then(refSpace => {
+            xrRefSpace = refSpace;
+            if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
+          });
+          if (xrSession && document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
+          renderer.setAnimationLoop(xrAnimate);
+          if (currentVrm) currentVrm.scene.position.set(0, 0, -1);
+        });
+        renderer.xr.addEventListener('sessionend', () => { renderer.setAnimationLoop(null); animate(); xrSession = null; });
+        function xrAnimate(time, frame) {
+          const delta = clock.getDelta();
+          if (currentVrm) currentVrm.update(delta);
+          if (currentMixer) currentMixer.update(delta);
+          renderer.render(scene, camera);
         }
 
-        // 添加事件监听
-        hideButton.addEventListener('mouseenter', () => {
-            hideButton.style.background = 'rgba(255,255,255,1)';
-            hideButton.style.transform = 'scale(1.1)';
-            hideButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+        // 子 6. VMC 按钮
+        const vmcButton = document.createElement('div');
+        vmcButton.id = 'vmc-handle';
+        vmcButton.innerHTML = '<i class="fas fa-broadcast-tower"></i>';
+        vmcButton.style.cssText = `
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333;
+            cursor: pointer; -webkit-app-region: no-drag; display: flex;
+            align-items: center; justify-content: center; font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform 0.2s;
+            user-select: none; pointer-events: auto; backdrop-filter: blur(10px);`;
+        let vmcApp = null;
+        let vmcWrapper = null;
+        vmcButton.addEventListener('click', async () => {
+            if (vmcApp) {
+                vmcApp.unmount(); document.body.removeChild(vmcWrapper); vmcApp = null; vmcWrapper = null; return;
+            }
+            const cfg = await window.electronAPI.getVMCConfig();
+            const { ElDialog, ElForm, ElFormItem, ElInput, ElSwitch, ElButton, ElInputNumber } = ElementPlus;
+            vmcWrapper = document.createElement('div');
+            document.body.appendChild(vmcWrapper);
+            vmcApp = Vue.createApp({
+                data() {
+                    return {
+                        dialogVisible: true,
+                        form: {
+                            receive: { enable: cfg.receive.enable, port: cfg.receive.port, syncExpression: cfg.receive.syncExpression },
+                            send: { enable: cfg.send.enable, host: cfg.send.host, port: cfg.send.port }
+                        },
+                        translations: { title: '', receiveEnable: '', receivePort: '', sendEnable: '', sendHost: '', sendPort: '', cancelButton: '', saveButton: '' }
+                    }
+                },
+                async mounted() {
+                    this.translations.title = await t('vmcSettings'); this.translations.receiveEnable = await t('vmcReceiveEnable'); this.translations.receivePort = await t('vmcReceivePort');
+                    this.translations.sendEnable = await t('vmcSendEnable'); this.translations.sendHost = await t('vmcSendHost'); this.translations.sendPort = await t('vmcSendPort');
+                    this.translations.cancelButton = await t('cancel'); this.translations.saveButton = await t('save'); this.translations.syncExpression = await t('syncExpression');
+                },
+                methods: {
+                    async saveConfig() {
+                        await window.electronAPI.setVMCConfig({
+                            receive: { enable: this.form.receive.enable, port: this.form.receive.port, syncExpression: this.form.receive.syncExpression },
+                            send: { enable: this.form.send.enable, host: this.form.send.host, port: this.form.send.port }
+                        });
+                        setVMCReceive(this.form.receive.enable, this.form.receive.syncExpression);
+                        this.close();
+                    },
+                    cancel() { this.close(); },
+                    close() { this.dialogVisible = false; vmcApp.unmount(); document.body.removeChild(vmcWrapper); vmcApp = null; vmcWrapper = null; }
+                },
+                template: `
+                    <el-dialog v-model="dialogVisible" :title="translations.title" width="420px" :modal="false" :close-on-click-modal="false" append-to-body custom-class="vmc-dialog" @close="close" style="background: rgba(255, 255, 255, 0.25) !important;backdrop-filter: blur(20px);border-radius: 20px !important;">
+                        <div style="padding: 0 10px;">
+                            <div style="margin-bottom: 20px; padding: 15px; background: rgba(245, 247, 250, 0.75)!important; border-radius: 20px;">
+                                <div style="display: flex; align-items: center; margin-bottom: 15px;"><el-switch v-model="form.receive.enable"></el-switch><span style="margin-left: 10px; font-weight: 500;">{{ translations.receiveEnable }}</span></div>
+                                <div style="display:flex;align-items:center;margin-top:8px;"><el-switch v-model="form.receive.syncExpression"></el-switch><span style="margin-left:10px;font-size:14px;">{{ translations.syncExpression }}</span></div>
+                                <div style="display: flex; align-items: center; gap: 10px;"><span style="width: 100px;margin-right:30px; font-size: 14px;">{{ translations.receivePort }}:</span><el-input-number v-model="form.receive.port" :min="1024" :max="65535" controls-position="right" style="width: 200px;"></el-input-number></div>
+                            </div>
+                            <div style="margin-bottom: 20px; padding: 15px; background: rgba(245, 247, 250, 0.75)!important; border-radius: 20px;">
+                                <div style="display: flex; align-items: center; margin-bottom: 15px;"><el-switch v-model="form.send.enable"></el-switch><span style="margin-left: 10px;margin-right:30px; font-weight: 500;">{{ translations.sendEnable }}</span></div>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;"><span style="width: 100px; margin-right:30px;font-size: 14px;">{{ translations.sendHost }}:</span><el-input v-model="form.send.host" style="width: 200px;"></el-input></div>
+                                <div style="display: flex; align-items: center; gap: 10px;"><span style="width: 100px;margin-right:30px; font-size: 14px;">{{ translations.sendPort }}:</span><el-input-number v-model="form.send.port" :min="1024" :max="65535" controls-position="right" style="width: 200px;"></el-input-number></div>
+                            </div>
+                        </div>
+                        <template #footer><div style="text-align: right;"><el-button @click="cancel" style="margin-right: 10px;">{{ translations.cancelButton }}</el-button><el-button type="primary" @click="saveConfig">{{ translations.saveButton }}</el-button></div></template>
+                    </el-dialog>
+                `
+            });
+            vmcApp.use(ElementPlus); vmcApp.mount(vmcWrapper);
         });
 
-        hideButton.addEventListener('mouseleave', () => {
-            hideButton.style.background = 'rgba(255,255,255,0.95)';
-            hideButton.style.transform = 'scale(1)';
-            hideButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        hideButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleAutoHide();
-        });
-
-        // 初始化自动隐藏按钮
-        await initHideButton();
-
+        // 子 7. 第一人称视角按钮
         const switchCtrlBtn = document.createElement('div');
         switchCtrlBtn.id = 'switch-controls-handle';
         switchCtrlBtn.innerHTML = '<i class="fas fa-gamepad"></i>';
         switchCtrlBtn.style.cssText = `
-            width: ${btn_width}px; height: ${btn_height}px;
-            background: rgba(255,255,255,0.95);
-            border: 2px solid rgba(0,0,0,0.1);
-            border-radius: 50%; color: #333;
-            cursor: pointer; -webkit-app-region: no-drag;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.2s ease; user-select: none;
-            pointer-events: auto; backdrop-filter: blur(10px);
+            width: ${btn_width}px; height: ${btn_height}px; background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; cursor: pointer; -webkit-app-region: no-drag;
+            display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform 0.2s; user-select: none; pointer-events: auto; backdrop-filter: blur(10px);
         `;
-
-        // 创建 PointerLockControls
         function createPointerLockControls() {
             pointerLockControls = new PointerLockControls(camera, renderer.domElement);
-            scene.add(pointerLockControls.getObject());   // 把相机容器放进场景
+            scene.add(pointerLockControls.getObject());
         }
-
-        // 切换控制模式
         function toggleControls() {
             if (!pointerLockControls) createPointerLockControls();
-
             if (!pointerLocked) {
-                // 进入 PointerLock
-                orbitControlsSaved = controls;           // 保存旧控制器
-                orbitControlsSaved.enabled = false;      // 先禁用
-                pointerLockControls.lock();              // 锁定鼠标
-                enablePointerLockMovement();
-                pointerLocked = true;
-                if (isAutoHideActive) {
-                    disableAutoHide();
-                    isAutoHideActive = false;
-                    autoHideDisabledByPointerLock = true;
-                    updateHideButtonState();
-                }
+                orbitControlsSaved = controls; orbitControlsSaved.enabled = false;
+                pointerLockControls.lock(); enablePointerLockMovement(); pointerLocked = true;
+                if (isAutoHideActive) { disableAutoHide(); isAutoHideActive = false; autoHideDisabledByPointerLock = true; updateHideButtonState(); }
                 switchCtrlBtn.style.color = '#ffc73bff';
             } else {
-                // 回到 OrbitControls
-                pointerLockControls.unlock();
-                disablePointerLockMovement(); 
-                pointerLocked = false;
-                if (autoHideDisabledByPointerLock) {
-                    enableAutoHide();
-                    isAutoHideActive = true;
-                    autoHideDisabledByPointerLock = false;
-                    updateHideButtonState();
-                }
+                pointerLockControls.unlock(); disablePointerLockMovement(); pointerLocked = false;
+                if (autoHideDisabledByPointerLock) { enableAutoHide(); isAutoHideActive = true; autoHideDisabledByPointerLock = false; updateHideButtonState(); }
                 switchCtrlBtn.style.color = '#333';
-                if (orbitControlsSaved) {
-                    orbitControlsSaved.enabled = true;
-                }
+                if (orbitControlsSaved) orbitControlsSaved.enabled = true;
             }
         }
-
-        // 点击按钮切换
-        switchCtrlBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleControls();
-        });
-
-        // 悬停动画
+        switchCtrlBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleControls(); });
         switchCtrlBtn.addEventListener('mouseenter', async () => {
-            switchCtrlBtn.style.background = 'rgba(255,255,255,1)';
-            switchCtrlBtn.style.transform   = 'scale(1.1)';
-            switchCtrlBtn.style.boxShadow   = '0 6px 16px rgba(0,0,0,0.2)';
-            switchCtrlBtn.title = pointerLocked
-                ? await t('ExitFirstPerson') || 'Exit First-Person'
-                : await t('EnterFirstPerson') || 'Enter First-Person';
+            switchCtrlBtn.style.background = 'rgba(255,255,255,1)'; switchCtrlBtn.style.transform = 'scale(1.1)'; switchCtrlBtn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+            switchCtrlBtn.title = pointerLocked ? await t('ExitFirstPerson') || 'Exit First-Person' : await t('EnterFirstPerson') || 'Enter First-Person';
         });
-        switchCtrlBtn.addEventListener('mouseleave', () => {
-            switchCtrlBtn.style.background = 'rgba(255,255,255,0.95)';
-            switchCtrlBtn.style.transform  = 'scale(1)';
-            switchCtrlBtn.style.boxShadow  = '0 4px 12px rgba(0,0,0,0.15)';
-        });
-
-        // 监听 PointerLock 事件（用户按 ESC 退出时同步按钮状态）
+        switchCtrlBtn.addEventListener('mouseleave', () => { switchCtrlBtn.style.background = 'rgba(255,255,255,0.95)'; switchCtrlBtn.style.transform = 'scale(1)'; switchCtrlBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; });
         document.addEventListener('pointerlockchange', () => {
-            if (document.pointerLockElement !== renderer.domElement && pointerLocked) {
-                // 用户 ESC 退出，强制切回 OrbitControls
-                toggleControls();
-            }
+            if (document.pointerLockElement !== renderer.domElement && pointerLocked) toggleControls();
         });
 
-        // 组装控制面板
-        controlPanel.appendChild(dragButton);
-        controlPanel.appendChild(lockButton);
-        controlPanel.appendChild(hideButton);
-        controlPanel.appendChild(subtitleButton);
-        controlPanel.appendChild(idleAnimationButton);
-        controlPanel.appendChild(prevModelButton);
-        controlPanel.appendChild(nextModelButton);
-
-        if (isElectron) {
-            controlPanel.appendChild(vmcButton);
-        }
-        controlPanel.appendChild(xrAutoBtn); // 新增：XR 自动按钮
-        controlPanel.appendChild(moveModeBtn); 
-        controlPanel.appendChild(switchCtrlBtn);
-        controlPanel.appendChild(refreshButton);
-        controlPanel.appendChild(closeButton);
+        // ==========================================
+        // ======= 组装所有面板与按钮 ===================
+        // ==========================================
         
-        // 收集所有需要隐藏的按钮（除了锁定按钮）
+        // 1. 组装主面板（按顺序排列）
+        controlPanel.appendChild(dragButton);          // 拖拽
+        controlPanel.appendChild(lockButton);          // 锁定穿透
+        controlPanel.appendChild(hideButton);          // 模型不遮挡
+        controlPanel.appendChild(prevModelButton);     // 上一个模型
+        controlPanel.appendChild(nextModelButton);     // 下一个模型
+        controlPanel.appendChild(moreButton);          // 🌟 更多按钮
+        controlPanel.appendChild(refreshButton);       // 刷新
+        controlPanel.appendChild(closeButton);         // 关闭
+
+        // 2. 组装子面板（收纳次要按钮）
+        subPanel.appendChild(subtitleButton);          // 字幕开关
+        subPanel.appendChild(idleAnimationButton);     // 闲置动画
+        subPanel.appendChild(switchCtrlBtn);           // 第一人称
+        subPanel.appendChild(moveModeBtn);             // 物体平移缩放
+        subPanel.appendChild(wsStatusButton);          // WS 状态
+        subPanel.appendChild(xrAutoBtn);               // XR
+        if (isElectron) {
+            subPanel.appendChild(vmcButton);           // VMC 设置
+        }
+
+        // 3. 把子面板挂载到主面板内部
+        controlPanel.appendChild(subPanel);
+        
+        // 4. 将所有需要被“锁定”操作隐藏的按钮放入数组
         controlButtons.push(
             dragButton, 
-            vmcButton,
-            wsStatusButton,
             hideButton,
-            subtitleButton, 
-            idleAnimationButton, 
             prevModelButton, 
             nextModelButton, 
-            moveModeBtn,
+            moreButton,          // 让"更多"按钮受锁定控制
             refreshButton, 
             closeButton,
-            xrAutoBtn,
-            switchCtrlBtn
+            // 以下为子面板内的按钮，一同加入数组确保状态一致
+            subtitleButton, 
+            idleAnimationButton, 
+            switchCtrlBtn,
+            moveModeBtn,
+            wsStatusButton,
+            xrAutoBtn
         );
+        if (isElectron) controlButtons.push(vmcButton);
 
-        // 添加到页面
+        // 5. 添加到页面
         document.body.appendChild(controlPanel);
 
-        // 为每个按钮添加悬浮提示
-        addHoverEffect(vmcButton, await t('vmcSettings') || 'VMC Settings');
+        // 初始化所有提示文本
+        dragButton.title = await t('dragWindow');
+        refreshButton.title = await t('refreshWindow');
+        closeButton.title = await t('closeWindow');
+        
         addHoverEffect(dragButton, await t('dragWindow'));
         addHoverEffect(lockButton, isMouseLocked ? await t('UnlockWindow') : await t('LockWindow'));
         addHoverEffect(hideButton, isAutoHideActive ? await t('AutoHideEnabled') : await t('AutoHideDescription'));
-        addHoverEffect(wsStatusButton, wsConnected ? await t('WebSocketConnected') : await t('WebSocketDisconnected'));
-        addHoverEffect(subtitleButton, isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled'));
-        addHoverEffect(idleAnimationButton, useVRMAIdleAnimations ? 
-            await t('UsingVRMAAnimations') : 
-            await t('UsingProceduralAnimations'));
-        addHoverEffect(xrAutoBtn, await t('EnterXR') || 'Enter XR');
-        // 模型切换按钮
-        const prevModel = getPrevModelInfo();
-        const nextModel = getNextModelInfo();
-        addHoverEffect(prevModelButton, prevModel ? `${await t('Previous')}: ${prevModel.name}` : await t('NoPreviousModel'));
-        addHoverEffect(nextModelButton, nextModel ? `${await t('Next')}: ${nextModel.name}` : await t('NoNextModel'));
-        
         addHoverEffect(refreshButton, await t('refreshWindow'));
         addHoverEffect(closeButton, await t('closeWindow'));
         
-        // 当状态变化时更新工具提示
+        addHoverEffect(wsStatusButton, wsConnected ? await t('WebSocketConnected') : await t('WebSocketDisconnected'));
+        addHoverEffect(subtitleButton, isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled'));
+        addHoverEffect(idleAnimationButton, useVRMAIdleAnimations ? await t('UsingVRMAAnimations') : await t('UsingProceduralAnimations'));
+        addHoverEffect(xrAutoBtn, await t('EnterXR') || 'Enter XR');
+        addHoverEffect(switchCtrlBtn, pointerLocked ? await t('ExitFirstPerson') || 'Exit First-Person' : await t('EnterFirstPerson') || 'Enter First-Person');
+        
+        if (isElectron) {
+            addHoverEffect(vmcButton, await t('vmcSettings') || 'VMC Settings');
+        }
+
         async function updateButtonTooltips() {
-            // 更新锁定按钮提示
             addHoverEffect(lockButton, isMouseLocked ? await t('UnlockWindow') : await t('LockWindow'));
-            
-            // 更新自动隐藏按钮提示
             addHoverEffect(hideButton, isAutoHideActive ? await t('AutoHideEnabled') : await t('AutoHideDescription'));
-            
-            // 更新WebSocket状态提示
             addHoverEffect(wsStatusButton, wsConnected ? await t('WebSocketConnected') : await t('WebSocketDisconnected'));
-            
-            // 更新字幕按钮提示
             addHoverEffect(subtitleButton, isSubtitleEnabled ? await t('SubtitleEnabled') : await t('SubtitleDisabled'));
-            addHoverEffect(switchCtrlBtn, pointerLocked
-                            ? await t('ExitFirstPerson') || 'Exit First-Person (WASD+QE)'
-                            : await t('EnterFirstPerson') || 'Enter First-Person (WASD+QE)');
-            // 更新闲置动画按钮提示
-            addHoverEffect(idleAnimationButton, useVRMAIdleAnimations ? 
-                await t('UsingVRMAAnimations') : 
-                await t('UsingProceduralAnimations'));
+            addHoverEffect(switchCtrlBtn, pointerLocked ? await t('ExitFirstPerson') || 'Exit First-Person (WASD+QE)' : await t('EnterFirstPerson') || 'Enter First-Person (WASD+QE)');
+            addHoverEffect(idleAnimationButton, useVRMAIdleAnimations ? await t('UsingVRMAAnimations') : await t('UsingProceduralAnimations'));
             
-            // 更新模型切换按钮提示
             const prevModel = getPrevModelInfo();
             const nextModel = getNextModelInfo();
             addHoverEffect(prevModelButton, prevModel ? `${await t('Previous')}: ${prevModel.name}` : await t('NoPreviousModel'));
             addHoverEffect(nextModelButton, nextModel ? `${await t('Next')}: ${nextModel.name}` : await t('NoNextModel'));
+            switch (transformState) {
+                case 0: moveModeBtn.title = await t('ModeOff') || 'Mode: Off'; break;
+                case 1: moveModeBtn.title = await t('ModeMove') || 'Move Mode'; break;
+                case 2: moveModeBtn.title = await t('ModeRotate') || 'Rotate Mode'; break;
+                case 3: moveModeBtn.title = await t('ModeScale') || 'Scale Mode'; break;
+            }
         }
-        
-        // 定期更新提示（状态变化时也需要调用）
         setInterval(updateButtonTooltips, 1000);
 
-        // 显示/隐藏控制逻辑
+        // 显示/隐藏控制逻辑 (整个面板的自动淡出)
         let hideTimeout;
         let isControlPanelHovered = false;
         
-        // 显示控制面板
         function showControlPanel() {
             clearTimeout(hideTimeout);
             controlPanel.style.opacity = '1';
@@ -3931,9 +3317,13 @@ function addcontrolPanel() {
             controlPanel.style.pointerEvents = 'auto';
         }
         
-        // 隐藏控制面板
         function hideControlPanel() {
             if (!isControlPanelHovered) {
+                // 如果鼠标静止，自动折叠子面板
+                if (isSubPanelOpen) {
+                    isSubPanelOpen = false;
+                    updateMoreButtonState();
+                }
                 controlPanel.style.opacity = '0';
                 controlPanel.style.visibility = 'hidden';
                 controlPanel.style.transform = 'translateX(20px)';
@@ -3941,61 +3331,42 @@ function addcontrolPanel() {
             }
         }
         
-        // 延迟隐藏控制面板
         function scheduleHide() {
             clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(hideControlPanel, 2000); // 2秒后隐藏
+            hideTimeout = setTimeout(hideControlPanel, 2000); 
         }
         
-        // 窗口鼠标进入事件
-        document.body.addEventListener('mouseenter', () => {
-            showControlPanel();
-        });
+        document.body.addEventListener('mouseenter', () => { showControlPanel(); });
+        document.body.addEventListener('mousemove', () => { showControlPanel(); scheduleHide(); });
+        document.body.addEventListener('mouseleave', () => { if (!isControlPanelHovered) scheduleHide(); });
         
-        // 窗口鼠标移动事件（重置隐藏计时器）
-        document.body.addEventListener('mousemove', () => {
-            showControlPanel();
-            scheduleHide();
-        });
-        
-        // 窗口鼠标离开事件
-        document.body.addEventListener('mouseleave', () => {
-            if (!isControlPanelHovered) {
-                scheduleHide();
-            }
-        });
-        
-        // 控制面板鼠标进入事件
         controlPanel.addEventListener('mouseenter', () => {
             isControlPanelHovered = true;
             clearTimeout(hideTimeout);
             showControlPanel();
+            if (isMouseLocked) window.electronAPI.setIgnoreMouseEvents(false);
         });
         
-        // 控制面板鼠标离开事件
         controlPanel.addEventListener('mouseleave', () => {
             isControlPanelHovered = false;
             scheduleHide();
+            if (isMouseLocked) window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
         });
         
-        // 鼠标静止检测
         let mouseStopTimeout;
         document.body.addEventListener('mousemove', () => {
             clearTimeout(mouseStopTimeout);
             mouseStopTimeout = setTimeout(() => {
-                if (!isControlPanelHovered) {
-                    hideControlPanel();
-                }
-            }, 3000); // 鼠标静止3秒后隐藏
+                if (!isControlPanelHovered) hideControlPanel();
+            }, 3000); 
         });
         
-        // 初始状态：隐藏控制面板
         scheduleHide();
+        console.log('控制面板已加载，更多功能折叠完毕。');
 
-        console.log('控制面板已添加到页面');
     }, 1000);
-
 }
+
 addcontrolPanel();
 // 在全局变量区域添加
 let ttsWebSocket = null;
