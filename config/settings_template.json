@@ -351,6 +351,10 @@
       "fishVoice": "",
       "googleServiceAccount": "",
       "googleVoice": "",
+      "elevenLabsApiKey": "",
+      "elevenLabsVoice": "JBFqnCBsd6RMkjVDRZzb",
+      "elevenLabsModel": "eleven_multilingual_v2",
+      "elevenLabsRate": 1.0,
       "newtts":{}
     },
     "largeMoreButtonDict":[

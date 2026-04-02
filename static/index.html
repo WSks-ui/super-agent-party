@@ -6305,6 +6305,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           @change="autoSaveSettings();handleASRchange();"
                           class="full-width-input"
                         >
+                          <el-option v-if="isWindows" :label="t('systemASR')" value="system" ></el-option>
                           <el-option :label="t('sherpa-onnx-sense-voice')" value="sherpa" ></el-option>
                           <el-option :label="t('webSpeech')" value="webSpeech" ></el-option>
                           <el-option label="FunASR" value="funasr" ></el-option>
@@ -6665,6 +6666,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           <el-option label="Minimax" value="minimax"></el-option>
                           <el-option label="Xunfei (讯飞)" value="xunfei"></el-option>
                           <el-option label="Fish Audio" value="fish"></el-option>
+                          <el-option label="Elevenlabs" value="elevenlabs"></el-option>
                         </el-select>
                       </el-form-item>
                       <el-form-item :label="t('separators')">
@@ -6922,6 +6924,81 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </template>
                     </el-alert>
+                  </div>
+
+                  <!-- ================= ElevenLabs TTS ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'elevenlabs'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>
+                          <el-icon><i class="fa-solid fa-wave-square"></i></el-icon> 
+                          ElevenLabs
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://elevenlabs.io/app/settings/api-keys" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1"><i class="fa-solid fa-key"></i></el-icon>
+                            {{ t('getAPIkey') || 'Get API Key' }}
+                          </el-link>
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div class="tool-content">
+                      <!-- API Key -->
+                      <el-form-item label="API Key" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsApiKey" 
+                          type="password" 
+                          show-password
+                          placeholder="sk_xxxxxxxxxxxx" 
+                          @change="autoSaveSettings"
+                        />
+                      </el-form-item>
+                      
+                      <!-- Voice ID (手动填写) -->
+                      <el-form-item label="Voice ID" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsVoice" 
+                          placeholder="e.g. JBFqnCBsd6RMkjVDRZzb" 
+                          @change="autoSaveSettings"
+                        >
+                          <template #append>
+                            <el-link 
+                              type="primary" 
+                              href="https://elevenlabs.io/app/voice-library" 
+                              target="_blank"
+                              style="padding: 0 10px;"
+                            >
+                              Browse Voices
+                            </el-link>
+                          </template>
+                        </el-input>
+                      </el-form-item>
+                      
+                      <!-- Model ID (手动填写，默认值) -->
+                      <el-form-item label="Model ID" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsModel" 
+                          placeholder="e.g. eleven_multilingual_v2" 
+                          @change="autoSaveSettings"
+                        />
+                      </el-form-item>
+                      
+                      <!-- Rate Slider -->
+                      <el-form-item label="Rate" class="form-item-align">
+                        <el-slider
+                          v-model="ttsSettings.elevenLabsRate"
+                          :min="0.5"
+                          :max="2.0"
+                          :step="0.1"
+                          show-input
+                          @change="autoSaveSettings">
+                        </el-slider>
+                      </el-form-item>
+                    </div>
                   </div>
 
 

@@ -679,7 +679,15 @@ let vue_data = {
       // Google
       googleServiceAccount: '', // JSON 字符串
       googleVoice: '',
-      newtts:{}
+      newtts:{},
+
+
+      // elevenLabs
+      elevenLabsApiKey: '',
+      elevenLabsVoice: 'JBFqnCBsd6RMkjVDRZzb',
+      elevenLabsModel: 'eleven_multilingual_v2',
+      elevenLabsRate: 1.0,
+
     },
     volcResourceOptions: [
         { value: 'volc_tts_release', label: '旧版/标准版 (Standard)' },

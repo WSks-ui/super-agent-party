@@ -6561,6 +6561,63 @@ def hotwords_to_json(input_str):
     # 转换为JSON字符串
     return json.dumps(result, ensure_ascii=False)
 
+async def windows_system_recognize(audio_data: bytes, settings: dict) -> str:
+    """
+    使用 Windows SAPI 5.x 进行纯本地语音识别（无需任何付费服务）
+    依赖：Windows 10/11 内置语音识别组件 + pywin32
+    """
+    import sys
+    import tempfile
+    import os
+    
+    if sys.platform != "win32":
+        raise Exception("Windows 系统语音识别仅支持 Windows 平台")
+    
+    try:
+        import win32com.client
+        import pythoncom
+        
+        # 初始化 COM（必须在每个线程中调用）
+        pythoncom.CoInitialize()
+        
+        # 确保音频是 16kHz PCM16 单声道 WAV 格式
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            # 如果输入不是标准 WAV，需要先转换（你已有 convert_audio_to_pcm16）
+            tmp.write(audio_data)
+            wav_path = tmp.name
+        
+        try:
+            # 创建语音识别器
+            recognizer = win32com.client.Dispatch("SAPI.SpRecognizer")
+            recognizer.AudioFormat = win32com.client.Dispatch("SAPI.SpAudioFormat")
+            recognizer.AudioFormat.Type = 1  # SPASF_16kHz16BitMono
+            
+            # 设置输入文件
+            recognizer.SetInput(wav_path, None)
+            
+            # 启用自由听写模式（支持任意词汇）
+            grammar = recognizer.CreateGrammar(0)
+            grammar.DictationSetState(1)  # 1 = SGSActive
+            
+            # 执行识别（同步阻塞，适合短音频）
+            result = recognizer.RecognizeStream(None)
+            
+            if result and result.PhraseInfo:
+                # 获取识别文本（参数：Start, Count, Flags）
+                text = result.PhraseInfo.GetText(0, -1, True)
+                return text.strip() if text else ""
+            return ""
+            
+        finally:
+            os.unlink(wav_path)
+            pythoncom.CoUninitialize()  # 释放 COM
+            
+    except ImportError:
+        raise Exception("请安装 pywin32: pip install pywin32")
+    except Exception as e:
+        print(f"Windows SAPI 识别错误: {e}")
+        raise
+
 # ASR WebSocket处理
 @app.websocket("/ws/asr")
 async def asr_websocket_endpoint(websocket: WebSocket):
@@ -6754,6 +6811,25 @@ async def asr_websocket_endpoint(websocket: WebSocket):
                                 "text": result,
                                 "is_final": True
                             })
+
+                        elif asr_engine == "system":
+                            import sys
+                            if sys.platform != "win32":
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": "系统语音识别仅支持 Windows 平台"
+                                })
+                                continue
+                            
+                            print("Using Windows System ASR (SAPI)")
+                            result = await windows_system_recognize(audio_bytes, asr_settings)
+                            await websocket.send_json({
+                                "type": "transcription",
+                                "id": frame_id,
+                                "text": result,
+                                "is_final": True
+                            })
+
                     except WebSocketDisconnect:
                         print(f"ASR WebSocket disconnected: {connection_id}")
                     except Exception as e:
@@ -6851,6 +6927,19 @@ async def asr_transcription(
             # Sherpa 通常是本地模型推理，损耗在于 CPU/GPU，不在连接建立
             result = await sherpa_recognize(audio_bytes)
         
+        elif asr_engine == "system":
+            import sys
+            if sys.platform != "win32":
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "error": "仅支持 Windows", "text": ""}
+                )
+            print("Using Windows System ASR (SAPI)")
+            result = await windows_system_recognize(audio_bytes, asr_settings)
+            return JSONResponse(
+                content={"success": True, "text": result.strip(), "engine": "system"}
+            )
+
         else:
             return JSONResponse(
                 status_code=400,
@@ -7507,6 +7596,101 @@ async def text_to_speech(request: Request):
             media_type = "audio/ogg" if target_format == "opus" else "audio/mpeg"
             return StreamingResponse(generate_from_file(), media_type=media_type)
 
+        # ==========================================
+        # 8. ElevenLabs TTS (最终修复版)
+        # ==========================================
+        elif tts_engine == 'elevenlabs':
+            from elevenlabs.client import ElevenLabs as ElevenLabsClient
+            
+            api_key = tts_settings.get('elevenLabsApiKey', '')
+            voice_id = tts_settings.get('elevenLabsVoice', '')
+            model_id = tts_settings.get('elevenLabsModel', 'eleven_multilingual_v2')
+            rate = float(tts_settings.get('elevenLabsRate', 1.0))
+            
+            if not api_key:
+                raise HTTPException(status_code=400, detail="ElevenLabs API Key 未配置")
+            if not voice_id:
+                raise HTTPException(status_code=400, detail="ElevenLabs Voice ID 未配置")
+            
+            if mobile_optimized:
+                rate = min(rate * 0.95, 1.2)
+            
+            client = ElevenLabsClient(api_key=api_key)
+            
+            # 1. 【修复关键点】提前建立连接和请求！如果 Voice ID 错误，这里会立即抛出异常
+            # 此时因为还没有进入 StreamingResponse，抛出 HTTPException 状态码修改是完全合法的
+            try:
+                audio_stream = await asyncio.to_thread(
+                    client.text_to_speech.convert,
+                    text=text,
+                    voice_id=voice_id,
+                    model_id=model_id or 'eleven_multilingual_v2',
+                    output_format='mp3_44100_128'
+                )
+            except Exception as e:
+                error_msg = str(e)
+                if "API key" in error_msg.lower() or "authentication" in error_msg.lower():
+                    raise HTTPException(status_code=401, detail="ElevenLabs API Key 无效")
+                elif "voice" in error_msg.lower() or "not found" in error_msg.lower():
+                    raise HTTPException(status_code=400, detail=f"Voice ID 无效: {voice_id}")
+                elif "model" in error_msg.lower():
+                    raise HTTPException(status_code=400, detail=f"Model ID 无效: {model_id}")
+                elif "credit" in error_msg.lower() or "quota" in error_msg.lower() or "characters" in error_msg.lower():
+                    raise HTTPException(status_code=429, detail="ElevenLabs 额度不足")
+                else:
+                    raise HTTPException(status_code=502, detail=f"ElevenLabs 服务错误: {error_msg}")
+
+            async def generate_audio():
+                # 2. 【性能修复】利用线程池安全地拉取同步生成器的数据，避免阻塞并发循环
+                def get_next_chunk():
+                    try:
+                        return next(audio_stream)
+                    except StopIteration:
+                        return None
+
+                while True:
+                    try:
+                        chunk = await asyncio.to_thread(get_next_chunk)
+                        if chunk is None:
+                            break
+                        if chunk:
+                            yield chunk
+                    except Exception as e:
+                        # 注意：在这里如果流传输中断了，不能再 raise HTTPException 了，只需中断流即可
+                        print(f"ElevenLabs 传输中断: {str(e)}")
+                        break
+
+            # 移动端：转换为 opus（需要先收集所有 chunk）
+            if target_format == "opus":
+                async def generate_opus():
+                    collected = bytearray()
+                    async for chunk in generate_audio():
+                        collected.extend(chunk)
+                    if collected:
+                        res = await asyncio.to_thread(convert_to_opus_simple, bytes(collected))
+                        final = res[0] if isinstance(res, tuple) else res
+                        for i in range(0, len(final), 4096):
+                            yield final[i:i + 4096]
+                return StreamingResponse(
+                    generate_opus(),
+                    media_type="audio/ogg",
+                    headers={
+                        "Content-Disposition": f"inline; filename=tts_{index}.opus",
+                        "X-Audio-Index": str(index),
+                        "X-Audio-Format": "opus"
+                    }
+                )
+            else:
+                # MP3 直接流式返回 generator
+                return StreamingResponse(
+                    generate_audio(),
+                    media_type="audio/mpeg",
+                    headers={
+                        "Content-Disposition": f"inline; filename=tts_{index}.mp3",
+                        "X-Audio-Index": str(index),
+                        "X-Audio-Format": "mp3"
+                    }
+                )
         raise HTTPException(status_code=400, detail="不支持的TTS引擎")
     
     except Exception as e:
