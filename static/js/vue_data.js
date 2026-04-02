@@ -359,6 +359,7 @@ let vue_data = {
       visibilityScope: 'workspace',
       engine: 'local',
       cc_path: '',
+      shortcut: true,
     },
     visionControlSettings:{
       enabled: false,

@@ -1815,7 +1815,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                                         <div class="node-label" 
                                             style="display: flex; align-items: center; gap: 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
                                             @dblclick="data.isDirectory ? null : openWorkspaceFile(data.path)"
-                                            @click="data.isDirectory ? node.expanded = !node.expanded : null">
+                                            @click="data.isDirectory ? (node.expanded = !node.expanded) : handleFileShortcut(data.path)">
                                             
                                             <i :class="data.isDirectory ? (node.expanded ? 'fa-solid fa-folder-open' : 'fa-solid fa-folder') : 'fa-regular fa-file-lines'" 
                                               :style="{ color: data.isDirectory ? '#E6A23C' : 'var(--el-text-color-regular)' }"></i>
@@ -8452,8 +8452,26 @@ function updateElement(el, rawMarkdown, formatFn) {
                           </el-input>
                         </el-form-item>
 
-                      </div>
+                        <el-form-item :label="t('enabledShortCut')" class="form-item-align" label-position="left">
+                          <el-switch
+                            v-model="CLISettings.shortcut"
+                            @change="autoSaveSettings"
+                            class="tool-switch"
+                          ></el-switch>
+                        </el-form-item>
 
+                      </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        class="mb-2"
+                      >
+                        <template #default>
+                          <div class="alert-content">
+                            {{ t('shortcutNotice1') }}
+                          </div>
+                        </template>
+                      </el-alert>
                     </div>
 
                     <!-- 本地环境配置 -->

@@ -8,6 +8,8 @@ import os
 import argparse
 import socket
 import errno
+
+from py.cli_tool import read_file_tool_local
 os.environ["MEM0_TELEMETRY"] = "False"
 parser = argparse.ArgumentParser(description="Run the ASGI application server.")
 parser.add_argument("--host", default="127.0.0.1")
@@ -1561,6 +1563,97 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
     
     permissionMode = env_settings.get("permissionMode", "default")
     
+    if cwd and Path(cwd).exists() and cli_settings.get("enabled", False):
+        
+        # ==================== [新增] 1. 总是注入 MEMORY.md ====================
+        memory_file = Path(cwd) / ".agent" / "MEMORY.md"
+        if memory_file.exists() and memory_file.is_file():
+            try:
+                import aiofiles
+                async with aiofiles.open(memory_file, 'r', encoding='utf-8') as mf:
+                    mem_content = await mf.read()
+                if mem_content.strip():
+                    content_append(request.messages, 'system', f"\n\n**MEMORY.md**:\n{mem_content}\n\n")
+            except Exception as e:
+                print(f"读取 MEMORY.md 失败: {e}")
+
+        # ==================== [新增] 2. 处理 Shortcut 快捷指令 ====================
+        if cli_settings.get("shortcut", False):
+            # 获取最新一条用户消息
+            user_text = ""
+            if request.messages and request.messages[-1]['role'] == 'user':
+                user_msg_content = request.messages[-1].get('content', '')
+                if isinstance(user_msg_content, str):
+                    user_text = user_msg_content
+                elif isinstance(user_msg_content, list):
+                    # 兼容图文混合消息
+                    user_text = "".join([item.get('text', '') for item in user_msg_content if item.get('type') == 'text'])
+
+            user_text_trimmed = user_text.strip()
+            
+            if user_text_trimmed:
+                import datetime
+                import re
+                
+                # --- (1) 处理 '#' : 直接保存为记忆 ---
+                if user_text_trimmed.startswith('#'):
+                    mem_content_to_save = user_text_trimmed[1:].strip()
+                    if mem_content_to_save:
+                        try:
+                            agent_dir = Path(cwd) / ".agent"
+                            agent_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            append_text = f"\n- [{timestamp}] {mem_content_to_save}"
+                            
+                            import aiofiles
+                            async with aiofiles.open(memory_file, 'a', encoding='utf-8') as mf:
+                                await mf.write(append_text)
+                                
+                            content_append(request.messages, 'system', f"\n\nHint: The user has just saved the following content to the workspace memory using the '#' shortcut command:\n'{mem_content_to_save}'\nPlease briefly confirm in your next reply that you remember this information.\n\n")
+                        except Exception as e:
+                            print(f"保存 MEMORY.md 失败: {e}")
+
+                # --- (2) 处理 '/' : 注入特定技能 ---
+                elif user_text_trimmed.startswith('/'):
+                    parts = user_text_trimmed[1:].split()
+                    if parts:
+                        skill_name = parts[0]
+                        skill_dir = Path(cwd) / ".agent" / "skills" / skill_name
+                        if skill_dir.exists() and skill_dir.is_dir():
+                            doc_file_path = None
+                            # 尝试匹配常见的技能说明文档命名
+                            for name in ["SKILL.md", "skill.md", "SKILLS.md", "skills.md"]:
+                                if (skill_dir / name).exists():
+                                    doc_file_path = skill_dir / name
+                                    break
+                            
+                            if doc_file_path:
+                                try:
+                                    import aiofiles
+                                    async with aiofiles.open(doc_file_path, 'r', encoding='utf-8') as f:
+                                        skill_content = await f.read()
+                                    content_append(request.messages, 'system', f"\n\n🛠️ **The user actively triggered the workspace skill. [{skill_name}]**:\n\n{skill_content}\n\nPlease strictly follow the above skill instructions to handle the user's current request.\n\n")
+                                except Exception as e:
+                                    print(f"读取技能文档失败: {e}")
+
+                # --- (3) 处理 '@' : 提取并注入文件内容 ---
+                # 使用 (?:^|\s) 防止把邮箱前缀误认为是文件路径，例如 "user@mail.com" 不会触发
+                file_matches = re.findall(r'(?:^|\s)@([\w\.\-\/\\]+)', user_text)
+                if file_matches:
+                    files_content_injected = []
+                    for file_path in set(file_matches):  # 使用 set 去重
+                        try:
+                            # 直接复用你原有的 read_file_tool_local 函数读取工作区文件
+                            file_res = await read_file_tool_local(file_path)
+                            files_content_injected.append(f"文件 `{file_path}` 的内容：\n```\n{file_res}\n```")
+                        except Exception as e:
+                            files_content_injected.append(f"读取文件 `{file_path}` 失败: {str(e)}")
+                    
+                    if files_content_injected:
+                        combined_files = "\n\n".join(files_content_injected)
+                        content_append(request.messages, 'system', f"\n\n📂 **The user has mentioned the following files using the '@' quick syntax, which have been automatically read for you.**:\n\n{combined_files}\n\nPlease refer to the content of the above document to answer the user's question.\n\n")
+
     if cwd and Path(cwd).exists() and cli_settings.get("enabled", False):
         permission_message = ""
         # 权限模式提示（原有逻辑，但修复了变量名）

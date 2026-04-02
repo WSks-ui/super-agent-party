@@ -1541,6 +1541,8 @@ key3`,
         'EnableVoiceInput':'开启语音输入',
         'DisableVoiceInput':'关闭语音输入',
         'systemASR':'系统语音识别',
+        'enabledShortCut':'启用快捷指令',
+        'shortcutNotice1':'支持三种快捷指令，# 开头的指令用于保存工作区记忆，@ 开头的指令用于文件引用，/ 开头的命令用于注入skills'
     },
     'en-US': {
         'chat': 'Chat',
@@ -3081,5 +3083,7 @@ Key3`,
         'EnableVoiceInput': 'Enable Voice Input',
         'EnableVoiceInput': 'Enable Voice Input',
         'systemASR': 'System ASR',
+        'enabledShortCut': 'Enable Shortcuts',
+        'shortcutNotice1': 'Supports three types of shortcut commands: commands starting with # are used for saving workspace memory, commands starting with @ are used for file references, and commands starting with / are used for injecting skills.'
     },
   };
