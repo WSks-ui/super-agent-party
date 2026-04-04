@@ -7868,7 +7868,7 @@ async def list_tetos_voices(request: Request):
                             del os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 
             else:
-                raise ValueError(f"不支持的 tetos 提供商: {provider}")
+                pass
 
             return voices
 
@@ -8762,7 +8762,6 @@ async def get_default_vrm_models(request: Request):
         
         # 按名称排序
         models.sort(key=lambda x: x['name'])
-        print("models:",models)
         return JSONResponse(content={
             "success": True,
             "models": models
@@ -10226,6 +10225,15 @@ app.mount("/", StaticFiles(directory=os.path.join(base_path, "static"), html=Tru
 # 简化main函数
 if __name__ == "__main__":
     import uvicorn
+
+    # 格式化显示地址
+    display_host = "127.0.0.1" if HOST == "0.0.0.0" else HOST
+    
+    print("\n" + "="*50)
+    print(f"🚀 后端服务已启动")
+    print(f"🔗 本地运行地址: http://{display_host}:{PORT}")
+    print(f"📖 API 文档地址: http://{display_host}:{PORT}/docs") # 如果是 FastAPI
+    print("="*50 + "\n")
 
     uvicorn.run(
         app,

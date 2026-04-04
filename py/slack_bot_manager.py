@@ -50,10 +50,6 @@ class SlackBotManager:
         self.async_tools: Dict[str, List[str]] = {}  
         self.file_links: Dict[str, List[str]] = {}   
 
-        # --- 新增：注册到行为引擎 ---
-        from py.behavior_engine import global_behavior_engine
-        global_behavior_engine.register_handler("slack", self.execute_behavior_event)
-
     def start_bot(self, config: SlackBotConfig):
         if self.is_running:
             raise RuntimeError("Slack 机器人已在运行")
@@ -82,6 +78,8 @@ class SlackBotManager:
                 from py.get_setting import load_settings
                 from py.behavior_engine import global_behavior_engine, BehaviorSettings
                 
+                global_behavior_engine.register_handler("slack", self.execute_behavior_event)
+
                 settings = await load_settings()
                 behavior_data = settings.get("behaviorSettings", {})
                 
