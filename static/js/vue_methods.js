@@ -1833,6 +1833,7 @@ let vue_methods = {
                   if (data.success) {
                     imageLinks = data.fileLinks;
                     this.imageFiles = [...this.imageFiles, ...data.imageFiles];
+                    this.vedioFiles = [...this.vedioFiles, ...data.vedioFiles];
                   }
               } catch (error) { console.error(error); }
         }

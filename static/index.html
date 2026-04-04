@@ -11304,7 +11304,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                 </el-dialog>
               </div>
               <!-- 视频存储 -->
-              <div class="video-list">
+              <div v-show="subMenu === 'video'" class="video-list">
                 <div class="video-item" v-for="(video, index) in videoFiles" :key="index">
                   <div class="video-wrapper">
                     <!-- 视频播放器 -->

@@ -8486,6 +8486,7 @@ async def load_file_endpoint(request: Request, files: List[UploadFile] = File(No
     file_links = []
     textFiles = []
     imageFiles = []
+    vedioFiles = []
     
     # 辅助函数：根据后缀名判断类型
     def get_file_type(ext):
@@ -8523,8 +8524,10 @@ async def load_file_endpoint(request: Request, files: List[UploadFile] = File(No
                 ext_clean = file_extension[1:].lower()
                 if ext_clean in ALLOWED_EXTENSIONS:
                     textFiles.append(file_meta)
-                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS or ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS:
                     imageFiles.append(file_meta)
+                elif ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                    vedioFiles.append(file_meta)
 
         elif 'application/json' in content_type:
             data = await request.json()
@@ -8553,10 +8556,12 @@ async def load_file_endpoint(request: Request, files: List[UploadFile] = File(No
                 ext_clean = file_extension[1:].lower()
                 if ext_clean in ALLOWED_EXTENSIONS:
                     textFiles.append(file_meta)
-                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS or ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS:
                     imageFiles.append(file_meta)
+                elif ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                    vedioFiles.append(file_meta)
 
-        return JSONResponse(content={"success": True, "fileLinks": file_links, "textFiles": textFiles, "imageFiles": imageFiles})
+        return JSONResponse(content={"success": True, "fileLinks": file_links, "textFiles": textFiles, "imageFiles": imageFiles, "vedioFiles": vedioFiles})
     
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
