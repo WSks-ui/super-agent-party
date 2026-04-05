@@ -1,21 +1,37 @@
 import asyncio
 import time
-import pyautogui
-import pyperclip
 import platform
 import json
+import os
 from typing import List, Optional, Tuple
+from functools import wraps
 
-# 开启安全防故障机制：鼠标移动到屏幕四个角落将引发 pyautogui.FailSafeException 中断程序
-pyautogui.FAILSAFE = True
+# ================== 核心修复：安全导入 GUI 库 ==================
+GUI_AVAILABLE = False
+try:
+    import pyautogui
+    import pyperclip
+    # 开启安全防故障机制
+    pyautogui.FAILSAFE = True
+    pyautogui.PAUSE = 0.05
+    GUI_AVAILABLE = True
+except (KeyError, ImportError, Exception) as e:
+    # 如果在 Docker/无显示器环境中，忽略报错，只打印警告
+    print(f"⚠️ [Warning] 桌面鼠标键盘工具已禁用 (缺少 DISPLAY): {e}")
 
-# 全局配置：降低操作速度以提高稳定性（pyautogui 默认太快了）
-pyautogui.PAUSE = 0.05  # 每个操作之间的默认间隔 50ms
+# 拦截器：如果大模型在 Docker 里试图调用鼠标键盘，给它返回一句话，而不是让系统崩溃
+def require_gui(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        if not GUI_AVAILABLE:
+            return "执行失败：当前系统运行在无头环境(如Docker)中，没有物理显示器，无法执行鼠标和键盘操作。"
+        return await func(*args, **kwargs)
+    return wrapper
+# ==============================================================
+
 
 def _percent_to_pixel(x_percent: float, y_percent: float) -> Tuple[int, int]:
-    """
-    内部辅助函数：将千分比 (0 到 1000) 转换为当前屏幕的实际像素坐标。
-    """
+    """内部辅助函数：将千分比 (0 到 1000) 转换为当前屏幕的实际像素坐标。"""
     width, height = pyautogui.size()
     
     x_percent = max(0, min(1000, float(x_percent)))
@@ -26,6 +42,8 @@ def _percent_to_pixel(x_percent: float, y_percent: float) -> Tuple[int, int]:
     
     return px, py
 
+
+@require_gui
 async def mouse_move_async(x: float, y: float, duration: float = 0.5) -> str:
     """移动鼠标到屏幕千分比位置"""
     if x < 0 or x > 1000 or y < 0 or y > 1000:
@@ -34,14 +52,14 @@ async def mouse_move_async(x: float, y: float, duration: float = 0.5) -> str:
     px, py = _percent_to_pixel(x, y)
     
     def _move():
-        # 使用 tween 让移动更自然，并确保完全到达目标位置
         pyautogui.moveTo(px, py, duration=duration, tween=pyautogui.easeInOutQuad)
-        # 额外等待确保 Windows 系统完成鼠标事件队列
         time.sleep(0.02)
     
     await asyncio.to_thread(_move)
     return f"鼠标已成功移动到屏幕位置 ({x}‰, {y}‰)，实际像素坐标 ({px}, {py})，耗时 {duration} 秒。"
 
+
+@require_gui
 async def mouse_click_async(button: str = "left", clicks: int = 1, x: Optional[float] = None, y: Optional[float] = None) -> str:
     """点击鼠标（支持千分比坐标）"""
     if x is not None and y is not None:
@@ -50,23 +68,20 @@ async def mouse_click_async(button: str = "left", clicks: int = 1, x: Optional[f
         
         def _click_at():
             px, py = _percent_to_pixel(x, y)
-            # 🔴 关键修复：先移动，等待稳定，再点击
             pyautogui.moveTo(px, py, duration=0.2)
-            time.sleep(0.05)  # 确保鼠标已稳定到达位置
+            time.sleep(0.05)
             pyautogui.click(x=px, y=py, clicks=clicks, button=button, interval=0.05)
             
         await asyncio.to_thread(_click_at)
         return f"鼠标已移动到 ({x}‰, {y}‰) 并使用 {button} 键点击了 {clicks} 次。"
     else:
-        # 🔴 修复：添加间隔防止双击被识别为两次单击
         await asyncio.to_thread(pyautogui.click, clicks=clicks, button=button, interval=0.05)
         return f"鼠标在当前位置使用 {button} 键点击了 {clicks} 次。"
 
+
+@require_gui
 async def mouse_double_click_async(button: str = "left", x: Optional[float] = None, y: Optional[float] = None) -> str:
-    """
-    双击鼠标以快速打开链接、文件、应用等。
-    🔴 关键修复：真正的双击是快速连续两次点击（间隔 < 500ms）
-    """
+    """双击鼠标"""
     if x is not None and y is not None:
         if x < 0 or x > 1000 or y < 0 or y > 1000:    
             return "千分比坐标超出范围，请输入 0 到 1000 之间的值。"
@@ -75,7 +90,6 @@ async def mouse_double_click_async(button: str = "left", x: Optional[float] = No
             px, py = _percent_to_pixel(x, y)
             pyautogui.moveTo(px, py, duration=0.2)
             time.sleep(0.05)
-            # 明确的双击：两次点击，间隔短
             pyautogui.click(x=px, y=py, clicks=2, button=button, interval=0.05)
             
         await asyncio.to_thread(_double_click)
@@ -84,6 +98,8 @@ async def mouse_double_click_async(button: str = "left", x: Optional[float] = No
         await asyncio.to_thread(pyautogui.click, clicks=2, button=button, interval=0.05)
         return f"鼠标在当前位置使用 {button} 键双击。"
 
+
+@require_gui
 async def mouse_drag_async(x: float, y: float, duration: float = 0.5, button: str = "left") -> str:
     """拖拽鼠标到指定千分比位置"""
     if x < 0 or x > 1000 or y < 0 or y > 1000:    
@@ -92,22 +108,19 @@ async def mouse_drag_async(x: float, y: float, duration: float = 0.5, button: st
     px, py = _percent_to_pixel(x, y)
     
     def _drag():
-        # 🔴 修复：先确保在当前位置按下，再拖拽
         pyautogui.mouseDown(button=button)
-        time.sleep(0.05)  # 确保按下已注册
+        time.sleep(0.05)
         pyautogui.moveTo(px, py, duration=duration)
-        time.sleep(0.05)  # 确保到达目标位置
+        time.sleep(0.05)
         pyautogui.mouseUp(button=button)
         
     await asyncio.to_thread(_drag)
     return f"鼠标已按住 {button} 键拖拽到了位置 ({x}‰, {y}‰)。"
 
+
+@require_gui
 async def mouse_scroll_async(clicks: int) -> str:
-    """
-    滚动鼠标。
-    clicks > 0 为向上滚动，clicks < 0 为向下滚动。
-    """
-    # 🔴 修复：大量滚动时分段进行，避免事件丢失
+    """滚动鼠标"""
     def _scroll():
         chunk_size = 10 if abs(clicks) > 10 else abs(clicks)
         direction = 1 if clicks > 0 else -1
@@ -118,62 +131,47 @@ async def mouse_scroll_async(clicks: int) -> str:
             pyautogui.scroll(current_chunk * direction)
             remaining -= current_chunk
             if remaining > 0:
-                time.sleep(0.01)  # 小段间隔，避免缓冲区溢出
+                time.sleep(0.01)
     
     await asyncio.to_thread(_scroll)
     direction = "向上" if clicks > 0 else "向下"
     return f"鼠标滚轮已{direction}滚动了 {abs(clicks)} 个单位。"
 
+
+@require_gui
 async def keyboard_type_async(text: str) -> str:
-    """
-    输入文本。为了完美支持中文，采用剪贴板复制粘贴的方式。
-    """
+    """输入文本"""
     def _type_text():
         old_clipboard = ""
         try:
             old_clipboard = pyperclip.paste()
         except Exception:
-            pass  # 剪贴板可能为空或不可读
+            pass
         
         sys_os = platform.system()
         
         try:
-            # 🔴 修复：先清空剪贴板，确保能检测到复制成功
             pyperclip.copy("")
             pyperclip.copy(text)
-            
-            # 等待剪贴板真正就绪（不同系统需要的时间不同）
-            # Windows 通常需要更长时间
             wait_time = 0.2 if sys_os == "Windows" else 0.15
             time.sleep(wait_time)
             
-            # 验证剪贴板内容（防御性编程）
-            max_retries = 3
-            for i in range(max_retries):
-                current = pyperclip.paste()
-                if current == text:
-                    break
+            for i in range(3):
+                if pyperclip.paste() == text: break
                 time.sleep(0.1)
                 pyperclip.copy(text)
             
-            # 使用更可靠的按键序列
-            if sys_os == "Darwin":  # macOS
-                with pyautogui.hold('command'):
-                    pyautogui.press('v')
-            else:  # Windows/Linux
-                with pyautogui.hold('ctrl'):
-                    pyautogui.press('v')
+            if sys_os == "Darwin":
+                with pyautogui.hold('command'): pyautogui.press('v')
+            else:
+                with pyautogui.hold('ctrl'): pyautogui.press('v')
             
-            # 等待粘贴动作完成，给应用处理时间
             time.sleep(0.15)
-            
         finally:
-            # 恢复剪贴板，添加重试机制
             time.sleep(0.05)
             for _ in range(2):
                 try:
-                    if old_clipboard:
-                        pyperclip.copy(old_clipboard)
+                    if old_clipboard: pyperclip.copy(old_clipboard)
                     break
                 except Exception:
                     time.sleep(0.05)
@@ -181,28 +179,25 @@ async def keyboard_type_async(text: str) -> str:
     await asyncio.to_thread(_type_text)
     return f"已成功通过键盘输入文本：'{text}'"
 
+
+@require_gui
 async def keyboard_press_async(key: str, presses: int = 1) -> str:
-    """按下单个按键（如 enter, tab, esc, space 等）"""
-    # 🔴 修复：添加间隔，防止快速按键被合并
+    """按下单个按键"""
     await asyncio.to_thread(pyautogui.press, key, presses=presses, interval=0.05)
     return f"已按下键盘按键 '{key}' {presses} 次。"
 
+
+@require_gui
 async def keyboard_hotkey_async(keys: List[str]) -> str:
-    """
-    按下组合快捷键（如 ctrl+c, alt+tab 等）
-    🔴 关键修复：使用 hold() 上下文管理器确保按键正确释放
-    """
-    if not keys:
-        return "错误：未提供按键组合"
+    """按下组合快捷键"""
+    if not keys: return "错误：未提供按键组合"
     
     def _hotkey():
         if len(keys) == 1:
             pyautogui.press(keys[0])
         else:
-            # 使用 hold 确保修饰键被正确按住
             modifier = keys[0]
             rest_keys = keys[1:]
-            
             with pyautogui.hold(modifier):
                 for k in rest_keys:
                     pyautogui.press(k)
@@ -211,34 +206,27 @@ async def keyboard_hotkey_async(keys: List[str]) -> str:
     await asyncio.to_thread(_hotkey)
     return f"已触发组合键：{' + '.join(keys)}。"
 
+
+@require_gui
 async def keyboard_hold_async(keys: List[str], duration: float) -> str:
-    """
-    长按一个或多个按键一段时间后释放。
-    🔴 关键修复：添加最大时长限制，防止无限按住
-    """
-    # 安全限制：最多按住 30 秒，防止失控
-    if duration > 30:
-        duration = 30
+    """长按按键"""
+    if duration > 30: duration = 30
     
     def _hold_logic():
         start_time = time.time()
         try:
-            # 按下所有指定的键（带顺序）
             for key in keys:
                 pyautogui.keyDown(key)
-                time.sleep(0.02)  # 稍微间隔，确保系统识别
+                time.sleep(0.02)
             
-            # 等待，但定期检查是否超时（额外安全层）
             elapsed = 0
             while elapsed < duration:
                 sleep_time = min(0.1, duration - elapsed)
                 time.sleep(sleep_time)
                 elapsed = time.time() - start_time
-                
         except Exception as e:
             print(f"按住按键时出错: {e}")
         finally:
-            # 🔴 关键修复：倒序释放，与按下顺序相反（符合物理键盘逻辑）
             for key in reversed(keys):
                 try:
                     pyautogui.keyUp(key)
@@ -249,13 +237,11 @@ async def keyboard_hold_async(keys: List[str], duration: float) -> str:
     await asyncio.to_thread(_hold_logic)
     return f"已成功长按组合键 {keys} 持续 {duration} 秒。"
 
+
+@require_gui
 async def mouse_hold_async(button: str, duration: float) -> str:
-    """
-    长按鼠标按键一段时间后释放。
-    🔴 关键修复：添加最大时长限制和异常处理
-    """
-    if duration > 30:
-        duration = 30
+    """长按鼠标按键"""
+    if duration > 30: duration = 30
     
     def _hold_logic():
         try:
@@ -267,16 +253,15 @@ async def mouse_hold_async(button: str, duration: float) -> str:
     await asyncio.to_thread(_hold_logic)
     return f"已成功按住鼠标 {button} 键持续 {duration} 秒。"
 
+# 注意：wait_async 不需要 GUI，所以【不要】加 @require_gui
 async def wait_async(seconds: float) -> str:
     """等待一段时间，让页面或程序加载"""
-    # 🔴 修复：限制最大等待时间，防止误操作导致无限等待
-    seconds = min(max(0, seconds), 60)  # 限制 0-60 秒
+    seconds = min(max(0, seconds), 60)
     await asyncio.sleep(seconds)
     return f"已等待 {seconds} 秒。"
 
 async def screenshot_async() -> str:
     """获取截图"""
-    # 给系统一点缓冲时间完成之前的 UI 更新
     await asyncio.sleep(0.3)
     return "[Getting screenshot]"
 
