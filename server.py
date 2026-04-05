@@ -433,18 +433,16 @@ def draw_grid_on_image(image: Image.Image, grid_spacing: int = 10) -> Image.Imag
         # 确保不超出边界
         x = min(x, width - 1)
         draw.line([(x, 0), (x, height)], fill=line_color, width=1)
-        # 在顶部画千分比坐标标签
-        x_permille = x_pc * 10  # 转换为千分比
-        draw.text((x + 2, 5), f"{x_permille}", fill=text_color)
+        x_permille = x_pc
+        draw.text((x + 2, 5), f"{x_permille}%", fill=text_color)
 
     # 绘制水平线
     for y_pc in range(0, 101, grid_spacing):
         y = int(height * (y_pc / 100.0))
         y = min(y, height - 1)
         draw.line([(0, y), (width, y)], fill=line_color, width=1)
-        # 在左侧画千分比坐标标签
-        y_permille = y_pc * 10  # 转换为千分比
-        draw.text((5, y + 2), f"{y_permille}", fill=text_color)
+        y_permille = y_pc
+        draw.text((5, y + 2), f"{y_permille}%", fill=text_color)
         
     return image
 
@@ -3474,6 +3472,8 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                     if drs_msg:
                         content_append(request.messages, 'user',  f"\n\n{drs_msg}\n\n")
                 msg = await images_add_in_messages(request.messages, images,settings)
+                if request.top_p != 1 or settings['top_p'] != 1:
+                    extra['top_p'] = request.top_p or settings['top_p']
                 if tools:
                     response = await client.chat.completions.create(
                         model=model,
@@ -3481,7 +3481,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         temperature=request.temperature or settings['temperature'],
                         tools=tools,
                         stream=True,
-                        top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
                     )
@@ -3491,7 +3490,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         messages=msg,  # 添加图片信息到消息
                         temperature=request.temperature or settings['temperature'],
                         stream=True,
-                        top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
                     )
@@ -4234,19 +4232,16 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
                             
                             # 6. 修改 Prompt，引导 AI 使用网格
-                            grid_hint = " (图片已叠加 10x10 百分比网格，请参考红色数字和网格线准确定位坐标)"
+                            grid_hint = "【system info】The latest desktop screenshot has been injected."
                             
-                            current_user_msg = request.messages[-1]
-                            if isinstance(current_user_msg['content'], str):
-                                original_text = current_user_msg['content']
-                                current_user_msg['content'] = [
-                                    {"type": "text", "text": original_text + grid_hint},
+                            current_user_msg = {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": '[Getting screenshot]' + grid_hint},
                                     {"type": "image_url", "image_url": {"url": desktop_url}}
                                 ]
-                            elif isinstance(current_user_msg['content'], list):
-                                current_user_msg['content'].append(
-                                    {"type": "image_url", "image_url": {"url": desktop_url}}
-                                )
+                            }
+                            request.messages.append(current_user_msg)
                             
                             print(f"带网格截图已注入: {desktop_url}")
                             
@@ -4255,6 +4250,8 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         images = await images_in_messages(request.messages,fastapi_base_url)
                         request.messages = await message_without_images(request.messages)
                     msg = await images_add_in_messages(request.messages, images,settings)
+                    if request.top_p != 1 or settings['top_p'] != 1:
+                        extra['top_p'] = request.top_p or settings['top_p']
                     if tools:
                         response = await client.chat.completions.create(
                             model=model,
@@ -4262,7 +4259,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             temperature=request.temperature or settings['temperature'],
                             tools=tools,
                             stream=True,
-                            top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
                         )
@@ -4272,7 +4268,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             messages=msg,  # 添加图片信息到消息
                             temperature=request.temperature or settings['temperature'],
                             stream=True,
-                            top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
                         )
@@ -5203,6 +5198,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             if drs_msg:
                 content_append(request.messages, 'user',  f"\n\n{drs_msg}\n\n")
         msg = await images_add_in_messages(request.messages, images,settings)
+        if request.top_p != 1 or settings['top_p'] != 1:
+            extra['top_p'] = request.top_p or settings['top_p']
         if tools:
             response = await client.chat.completions.create(
                 model=model,
@@ -5210,7 +5207,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 temperature=request.temperature or settings['temperature'],
                 tools=tools,
                 stream=False,
-                top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
             )
@@ -5220,7 +5216,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 messages=msg,  # 添加图片信息到消息
                 temperature=request.temperature or settings['temperature'],
                 stream=False,
-                top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
             )
@@ -5435,6 +5430,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     )
                     content_prepend(request.messages, 'assistant', reasoner_response.model_dump()['choices'][0]['message']['reasoning_content']) # 可参考的推理过程
             msg = await images_add_in_messages(request.messages, images,settings)
+            if request.top_p != 1 or settings['top_p'] != 1:
+                extra['top_p'] = request.top_p or settings['top_p']
             if tools:
                 response = await client.chat.completions.create(
                     model=model,
@@ -5442,7 +5439,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     temperature=request.temperature or settings['temperature'],
                     tools=tools,
                     stream=False,
-                    top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
                 )
@@ -5452,7 +5448,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     messages=msg,  # 添加图片信息到消息
                     temperature=request.temperature or settings['temperature'],
                     stream=False,
-                    top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
                 )
