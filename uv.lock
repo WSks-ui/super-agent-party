@@ -612,6 +612,23 @@ wheels = [
 ]
 
 [[package]]
+name = "elevenlabs"
+version = "2.41.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/1e/0f0c8e489d0909e0a474e4d5a0f480daae452c0cbc09a2fb65c66dc50b07/elevenlabs-2.41.0.tar.gz", hash = "sha256:70af75aae931b55c4810f912f01825b0e8316566b419e4838dfa22f6a806de1d", size = 531070, upload-time = "2026-04-01T12:18:38.44Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6b/e9/55925cdbfc32b64cadc7da60042d6a96e3c22272589c343db007eb2ee7f4/elevenlabs-2.41.0-py3-none-any.whl", hash = "sha256:cc107f07eebabd7a807fe59c37e618b10f90bea2a1a861b40fab01d2a66e9c9b", size = 1446391, upload-time = "2026-04-01T12:18:36.789Z" },
+]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5153,6 +5170,7 @@ dependencies = [
     { name = "duckduckgo-search" },
     { name = "e2b-code-interpreter" },
     { name = "edge-tts" },
+    { name = "elevenlabs" },
     { name = "faiss-cpu" },
     { name = "fastapi" },
     { name = "fastapi-mcp" },
@@ -5223,6 +5241,7 @@ requires-dist = [
     { name = "duckduckgo-search", specifier = ">=8.0.3" },
     { name = "e2b-code-interpreter", specifier = ">=1.5.0" },
     { name = "edge-tts", specifier = ">=7.0.2" },
+    { name = "elevenlabs", specifier = ">=2.41.0" },
     { name = "faiss-cpu", specifier = ">=1.10.0" },
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "fastapi-mcp", specifier = ">=0.3.4" },

@@ -8,6 +8,8 @@ import os
 import argparse
 import socket
 import errno
+
+from py.cli_tool import read_file_tool_local
 os.environ["MEM0_TELEMETRY"] = "False"
 parser = argparse.ArgumentParser(description="Run the ASGI application server.")
 parser.add_argument("--host", default="127.0.0.1")
@@ -386,7 +388,7 @@ ALLOWED_EXTENSIONS = [
 ]
 ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']
 
-ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', '3gp', 'm4v']
+ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi']
 
 # 1. 先清空系统可能给错的条目
 for ext in ("js", "mjs", "css", "html", "htm", "json", "xml", "map", "svg"):
@@ -431,18 +433,16 @@ def draw_grid_on_image(image: Image.Image, grid_spacing: int = 10) -> Image.Imag
         # 确保不超出边界
         x = min(x, width - 1)
         draw.line([(x, 0), (x, height)], fill=line_color, width=1)
-        # 在顶部画千分比坐标标签
-        x_permille = x_pc * 10  # 转换为千分比
-        draw.text((x + 2, 5), f"{x_permille}", fill=text_color)
+        x_permille = x_pc
+        draw.text((x + 2, 5), f"{x_permille}%", fill=text_color)
 
     # 绘制水平线
     for y_pc in range(0, 101, grid_spacing):
         y = int(height * (y_pc / 100.0))
         y = min(y, height - 1)
         draw.line([(0, y), (width, y)], fill=line_color, width=1)
-        # 在左侧画千分比坐标标签
-        y_permille = y_pc * 10  # 转换为千分比
-        draw.text((5, y + 2), f"{y_permille}", fill=text_color)
+        y_permille = y_pc
+        draw.text((5, y + 2), f"{y_permille}%", fill=text_color)
         
     return image
 
@@ -1321,80 +1321,108 @@ async def message_without_images(messages: List[Dict]) -> List[Dict]:
     if messages:
         for message in messages:
             if 'content' in message:
-                # message['content'] 是一个列表
                 if isinstance(message['content'], list):
                     for item in message['content']:
-                        if isinstance(item, dict) and item['type'] == 'text':
+                        # 剥离包含图像和视频的内容，只保留文本传递（用于快速生成请求或剥离富媒体阶段）
+                        if isinstance(item, dict) and item.get('type') == 'text':
                             message['content'] = item['text']
                             break
     return messages
 
-async def images_in_messages(messages: List[Dict],fastapi_base_url: str) -> List[Dict]:
-    import hashlib
-    images = []
+async def images_in_messages(messages: List[Dict], fastapi_base_url: str) -> List[Dict]:
+    media_items = []
     index = 0
     for message in messages:
-        image_urls = []
+        extracted_media =[]
         if 'content' in message:
-            # message['content'] 是一个列表
             if isinstance(message['content'], list):
                 for item in message['content']:
-                    if isinstance(item, dict) and item['type'] == 'image_url':
-                        # 如果item["image_url"]["url"]是http或https开头，则转换成base64
-                        if item["image_url"]["url"].startswith("http"):
-                            image_url = item["image_url"]["url"]
-                            # 对image_url分解出baseURL，与fastapi_base_url比较，如果相同，将image_url的baseURL替换成127.0.0.1:PORT
-                            if fastapi_base_url in image_url:
-                                image_url = image_url.replace(fastapi_base_url, f"http://127.0.0.1:{PORT}/")
-                            base64_image = await get_image_base64(image_url)
-                            media_type = await get_image_media_type(image_url)
-                            item["image_url"]["url"] = f"data:{media_type};base64,{base64_image}"
-                            item["image_url"]["hash"] = hashlib.md5(item["image_url"]["url"].encode()).hexdigest()
+                    # 动态捕获图片或视频
+                    if isinstance(item, dict) and item.get('type') in ['image_url', 'video_url']:
+                        media_key = item['type']  # 'image_url' 或 'video_url'
+                        
+                        if item[media_key]["url"].startswith("http"):
+                            media_url = item[media_key]["url"]
+                            if fastapi_base_url in media_url:
+                                media_url = media_url.replace(fastapi_base_url, f"http://127.0.0.1:{PORT}/")
+                            
+                            # 假设你的 get_image_base64 同样可以将视频流转为 Base64
+                            base64_data = await get_image_base64(media_url)
+                            # 假设 get_image_media_type 也能正常返回 video/mp4, video/webm 等
+                            mime_type = await get_image_media_type(media_url)
+                            
+                            item[media_key]["url"] = f"data:{mime_type};base64,{base64_data}"
+                            item[media_key]["hash"] = hashlib.md5(item[media_key]["url"].encode()).hexdigest()
                         else:
-                            item["image_url"]["hash"] = hashlib.md5(item["image_url"]["url"].encode()).hexdigest()
+                            item[media_key]["hash"] = hashlib.md5(item[media_key]["url"].encode()).hexdigest()
 
-                        image_urls.append(item)
-        if image_urls:
-            images.append({'index': index, 'images': image_urls})
+                        extracted_media.append(item)
+        if extracted_media:
+            # 保持原来的字典结构向下兼容，images 实际上装载了 media
+            media_items.append({'index': index, 'images': extracted_media})
         index += 1
-    return images
+    return media_items
 
 async def images_add_in_messages(request_messages: List[Dict], images: List[Dict], settings: dict) -> List[Dict]:
-    messages=copy.deepcopy(request_messages)
+    messages = copy.deepcopy(request_messages)
+    
     if settings['vision']['enabled']:
         for image in images:
             index = image['index']
             if index < len(messages):
                 if 'content' in messages[index]:
                     for item in image['images']:
-                        # 如果uploaded_files/{item['image_url']['hash']}.txt存在，则读取文件内容，否则调用vision api
-                        if os.path.exists(os.path.join(UPLOAD_FILES_DIR, f"{item['image_url']['hash']}.txt")):
-                            with open(os.path.join(UPLOAD_FILES_DIR, f"{item['image_url']['hash']}.txt"), "r", encoding='utf-8') as f:
-                                messages[index]['content'] += f"\n\nsystem: 用户发送的图片(哈希值：{item['image_url']['hash']})信息如下：\n\n"+str(f.read())+"\n\n"
+                        media_key = item['type']  # 'image_url' 或 'video_url'
+                        file_hash = item[media_key]['hash']
+                        media_name = "视频" if media_key == "video_url" else "图片"
+                        
+                        # 统一缓存处理，如果是视频就是视频文本解析记录
+                        cache_file = os.path.join(UPLOAD_FILES_DIR, f"{file_hash}.txt")
+                        if os.path.exists(cache_file):
+                            with open(cache_file, "r", encoding='utf-8') as f:
+                                messages[index]['content'] += f"\n\nsystem: 用户发送的{media_name}(哈希值：{file_hash})信息如下：\n\n{f.read()}\n\n"
                         else:
-                            images_content = [{"type": "text", "text": "请仔细描述图片中的内容，包含图片中可能存在的文字、数字、颜色、形状、大小、位置、人物、物体、场景等信息。"},{"type": "image_url", "image_url": {"url": item['image_url']['url']}}]
-                            client = AsyncOpenAI(api_key=settings['vision']['api_key'],base_url=settings['vision']['base_url'])
+                            # 根据输入类型调整提示词
+                            prompt_text = "请仔细描述这段视频中的内容，包含视频中发生的事件、场景变化、人物动作以及关键细节等信息。" if media_key == "video_url" else "请仔细描述图片中的内容，包含图片中可能存在的文字、数字、颜色、形状、大小、位置、人物、物体、场景等信息。"
+                            
+                            media_content =[
+                                {"type": "text", "text": prompt_text},
+                                {"type": media_key, media_key: {"url": item[media_key]['url']}}
+                            ]
+                            
+                            # 直接交给视觉模型（视觉模型需原生支持视频）
+                            client = AsyncOpenAI(api_key=settings['vision']['api_key'], base_url=settings['vision']['base_url'])
                             response = await client.chat.completions.create(
                                 model=settings['vision']['model'],
-                                messages = [{"role": "user", "content": images_content}],
+                                messages=[{"role": "user", "content": media_content}],
                                 temperature=settings['vision']['temperature'],
                             )
-                            messages[index]['content'] += f"\n\nsystem: 用户发送的图片(哈希值：{item['image_url']['hash']})信息如下：\n\n"+str(response.choices[0].message.content)+"\n\n"
-                            with open(os.path.join(UPLOAD_FILES_DIR, f"{item['image_url']['hash']}.txt"), "w", encoding='utf-8') as f:
-                                f.write(str(response.choices[0].message.content))
+                            result_text = str(response.choices[0].message.content)
+                            messages[index]['content'] += f"\n\nsystem: 用户发送的{media_name}(哈希值：{file_hash})信息如下：\n\n{result_text}\n\n"
+                            
+                            with open(cache_file, "w", encoding='utf-8') as f:
+                                f.write(result_text)
     else:           
         for image in images:
             index = image['index']
             if index < len(messages):
                 if 'content' in messages[index]:
                     for item in image['images']:
-                        # 如果uploaded_files/{item['image_url']['hash']}.txt存在，则读取文件内容，否则调用vision api
-                        if os.path.exists(os.path.join(UPLOAD_FILES_DIR, f"{item['image_url']['hash']}.txt")):
-                            with open(os.path.join(UPLOAD_FILES_DIR, f"{item['image_url']['hash']}.txt"), "r", encoding='utf-8') as f:
-                                messages[index]['content'] += f"\n\nsystem: 用户发送的图片(哈希值：{item['image_url']['hash']})信息如下：\n\n"+str(f.read())+"\n\n"
+                        media_key = item['type']  # 'image_url' 或 'video_url'
+                        file_hash = item[media_key]['hash']
+                        media_name = "视频" if media_key == "video_url" else "图片"
+                        
+                        cache_file = os.path.join(UPLOAD_FILES_DIR, f"{file_hash}.txt")
+                        if os.path.exists(cache_file):
+                            with open(cache_file, "r", encoding='utf-8') as f:
+                                messages[index]['content'] += f"\n\nsystem: 用户发送的{media_name}(哈希值：{file_hash})信息如下：\n\n{f.read()}\n\n"
                         else:
-                            messages[index]['content'] = [{"type": "text", "text": messages[index]['content']}]
-                            messages[index]['content'].append({"type": "image_url", "image_url": {"url": item['image_url']['url']}})
+                            if isinstance(messages[index]['content'], str):
+                                messages[index]['content'] =[{"type": "text", "text": messages[index]['content']}]
+                            
+                            # 未开启视觉模型，直接以原生的 `video_url` 或 `image_url` 拼入请求，让当前大模型自行读取理解
+                            messages[index]['content'].append({"type": media_key, media_key: {"url": item[media_key]['url']}})
+                            
     return messages
 
 async def read_todos_local(cwd: str) -> list:
@@ -1561,6 +1589,97 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
     
     permissionMode = env_settings.get("permissionMode", "default")
     
+    if cwd and Path(cwd).exists() and cli_settings.get("enabled", False):
+        
+        # ==================== [新增] 1. 总是注入 MEMORY.md ====================
+        memory_file = Path(cwd) / ".agent" / "MEMORY.md"
+        if memory_file.exists() and memory_file.is_file():
+            try:
+                import aiofiles
+                async with aiofiles.open(memory_file, 'r', encoding='utf-8') as mf:
+                    mem_content = await mf.read()
+                if mem_content.strip():
+                    content_append(request.messages, 'system', f"\n\n**MEMORY.md**:\n{mem_content}\n\n")
+            except Exception as e:
+                print(f"读取 MEMORY.md 失败: {e}")
+
+        # ==================== [新增] 2. 处理 Shortcut 快捷指令 ====================
+        if cli_settings.get("shortcut", False):
+            # 获取最新一条用户消息
+            user_text = ""
+            if request.messages and request.messages[-1]['role'] == 'user':
+                user_msg_content = request.messages[-1].get('content', '')
+                if isinstance(user_msg_content, str):
+                    user_text = user_msg_content
+                elif isinstance(user_msg_content, list):
+                    # 兼容图文混合消息
+                    user_text = "".join([item.get('text', '') for item in user_msg_content if item.get('type') == 'text'])
+
+            user_text_trimmed = user_text.strip()
+            
+            if user_text_trimmed:
+                import datetime
+                import re
+                
+                # --- (1) 处理 '#' : 直接保存为记忆 ---
+                if user_text_trimmed.startswith('#'):
+                    mem_content_to_save = user_text_trimmed[1:].strip()
+                    if mem_content_to_save:
+                        try:
+                            agent_dir = Path(cwd) / ".agent"
+                            agent_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            append_text = f"\n- [{timestamp}] {mem_content_to_save}"
+                            
+                            import aiofiles
+                            async with aiofiles.open(memory_file, 'a', encoding='utf-8') as mf:
+                                await mf.write(append_text)
+                                
+                            content_append(request.messages, 'system', f"\n\nHint: The user has just saved the following content to the workspace memory using the '#' shortcut command:\n'{mem_content_to_save}'\nPlease briefly confirm in your next reply that you remember this information.\n\n")
+                        except Exception as e:
+                            print(f"保存 MEMORY.md 失败: {e}")
+
+                # --- (2) 处理 '/' : 注入特定技能 ---
+                elif user_text_trimmed.startswith('/'):
+                    parts = user_text_trimmed[1:].split()
+                    if parts:
+                        skill_name = parts[0]
+                        skill_dir = Path(cwd) / ".agent" / "skills" / skill_name
+                        if skill_dir.exists() and skill_dir.is_dir():
+                            doc_file_path = None
+                            # 尝试匹配常见的技能说明文档命名
+                            for name in ["SKILL.md", "skill.md", "SKILLS.md", "skills.md"]:
+                                if (skill_dir / name).exists():
+                                    doc_file_path = skill_dir / name
+                                    break
+                            
+                            if doc_file_path:
+                                try:
+                                    import aiofiles
+                                    async with aiofiles.open(doc_file_path, 'r', encoding='utf-8') as f:
+                                        skill_content = await f.read()
+                                    content_append(request.messages, 'system', f"\n\n🛠️ **The user actively triggered the workspace skill. [{skill_name}]**:\n\n{skill_content}\n\nPlease strictly follow the above skill instructions to handle the user's current request.\n\n")
+                                except Exception as e:
+                                    print(f"读取技能文档失败: {e}")
+
+                # --- (3) 处理 '@' : 提取并注入文件内容 ---
+                # 使用 (?:^|\s) 防止把邮箱前缀误认为是文件路径，例如 "user@mail.com" 不会触发
+                file_matches = re.findall(r'(?:^|\s)@([\w\.\-\/\\]+)', user_text)
+                if file_matches:
+                    files_content_injected = []
+                    for file_path in set(file_matches):  # 使用 set 去重
+                        try:
+                            # 直接复用你原有的 read_file_tool_local 函数读取工作区文件
+                            file_res = await read_file_tool_local(file_path)
+                            files_content_injected.append(f"文件 `{file_path}` 的内容：\n```\n{file_res}\n```")
+                        except Exception as e:
+                            files_content_injected.append(f"读取文件 `{file_path}` 失败: {str(e)}")
+                    
+                    if files_content_injected:
+                        combined_files = "\n\n".join(files_content_injected)
+                        content_append(request.messages, 'system', f"\n\n📂 **The user has mentioned the following files using the '@' quick syntax, which have been automatically read for you.**:\n\n{combined_files}\n\nPlease refer to the content of the above document to answer the user's question.\n\n")
+
     if cwd and Path(cwd).exists() and cli_settings.get("enabled", False):
         permission_message = ""
         # 权限模式提示（原有逻辑，但修复了变量名）
@@ -2316,7 +2435,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         screenshot.resize, (logical_width, logical_height), Image.Resampling.LANCZOS
                     )
                 
-                target_w, target_h = scale_to_fit(logical_width, logical_height, 1920, 1080)
+                target_w, target_h = scale_to_fit(logical_width, logical_height, 1280, 720)
                 
                 if screenshot.width > target_w or screenshot.height > target_h:
                     print(f"检测到高分辨率屏幕，正在从 {screenshot.size} 缩放到 {(target_w, target_h)}")
@@ -3353,6 +3472,8 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                     if drs_msg:
                         content_append(request.messages, 'user',  f"\n\n{drs_msg}\n\n")
                 msg = await images_add_in_messages(request.messages, images,settings)
+                if request.top_p != 1 or settings['top_p'] != 1:
+                    extra['top_p'] = request.top_p or settings['top_p']
                 if tools:
                     response = await client.chat.completions.create(
                         model=model,
@@ -3360,7 +3481,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         temperature=request.temperature or settings['temperature'],
                         tools=tools,
                         stream=True,
-                        top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
                     )
@@ -3370,7 +3490,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         messages=msg,  # 添加图片信息到消息
                         temperature=request.temperature or settings['temperature'],
                         stream=True,
-                        top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
                     )
@@ -4113,19 +4232,16 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
                             
                             # 6. 修改 Prompt，引导 AI 使用网格
-                            grid_hint = " (图片已叠加 10x10 百分比网格，请参考红色数字和网格线准确定位坐标)"
+                            grid_hint = "【system info】The latest desktop screenshot has been injected."
                             
-                            current_user_msg = request.messages[-1]
-                            if isinstance(current_user_msg['content'], str):
-                                original_text = current_user_msg['content']
-                                current_user_msg['content'] = [
-                                    {"type": "text", "text": original_text + grid_hint},
+                            current_user_msg = {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": '[Getting screenshot]' + grid_hint},
                                     {"type": "image_url", "image_url": {"url": desktop_url}}
                                 ]
-                            elif isinstance(current_user_msg['content'], list):
-                                current_user_msg['content'].append(
-                                    {"type": "image_url", "image_url": {"url": desktop_url}}
-                                )
+                            }
+                            request.messages.append(current_user_msg)
                             
                             print(f"带网格截图已注入: {desktop_url}")
                             
@@ -4134,6 +4250,8 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         images = await images_in_messages(request.messages,fastapi_base_url)
                         request.messages = await message_without_images(request.messages)
                     msg = await images_add_in_messages(request.messages, images,settings)
+                    if request.top_p != 1 or settings['top_p'] != 1:
+                        extra['top_p'] = request.top_p or settings['top_p']
                     if tools:
                         response = await client.chat.completions.create(
                             model=model,
@@ -4141,7 +4259,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             temperature=request.temperature or settings['temperature'],
                             tools=tools,
                             stream=True,
-                            top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
                         )
@@ -4151,7 +4268,6 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             messages=msg,  # 添加图片信息到消息
                             temperature=request.temperature or settings['temperature'],
                             stream=True,
-                            top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
                         )
@@ -5082,6 +5198,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             if drs_msg:
                 content_append(request.messages, 'user',  f"\n\n{drs_msg}\n\n")
         msg = await images_add_in_messages(request.messages, images,settings)
+        if request.top_p != 1 or settings['top_p'] != 1:
+            extra['top_p'] = request.top_p or settings['top_p']
         if tools:
             response = await client.chat.completions.create(
                 model=model,
@@ -5089,7 +5207,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 temperature=request.temperature or settings['temperature'],
                 tools=tools,
                 stream=False,
-                top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
             )
@@ -5099,7 +5216,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 messages=msg,  # 添加图片信息到消息
                 temperature=request.temperature or settings['temperature'],
                 stream=False,
-                top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
             )
@@ -5314,6 +5430,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     )
                     content_prepend(request.messages, 'assistant', reasoner_response.model_dump()['choices'][0]['message']['reasoning_content']) # 可参考的推理过程
             msg = await images_add_in_messages(request.messages, images,settings)
+            if request.top_p != 1 or settings['top_p'] != 1:
+                extra['top_p'] = request.top_p or settings['top_p']
             if tools:
                 response = await client.chat.completions.create(
                     model=model,
@@ -5321,7 +5439,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     temperature=request.temperature or settings['temperature'],
                     tools=tools,
                     stream=False,
-                    top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
                 )
@@ -5331,7 +5448,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     messages=msg,  # 添加图片信息到消息
                     temperature=request.temperature or settings['temperature'],
                     stream=False,
-                    top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
                 )
@@ -6754,6 +6870,7 @@ async def asr_websocket_endpoint(websocket: WebSocket):
                                 "text": result,
                                 "is_final": True
                             })
+
                     except WebSocketDisconnect:
                         print(f"ASR WebSocket disconnected: {connection_id}")
                     except Exception as e:
@@ -6851,6 +6968,7 @@ async def asr_transcription(
             # Sherpa 通常是本地模型推理，损耗在于 CPU/GPU，不在连接建立
             result = await sherpa_recognize(audio_bytes)
         
+
         else:
             return JSONResponse(
                 status_code=400,
@@ -7507,6 +7625,101 @@ async def text_to_speech(request: Request):
             media_type = "audio/ogg" if target_format == "opus" else "audio/mpeg"
             return StreamingResponse(generate_from_file(), media_type=media_type)
 
+        # ==========================================
+        # 8. ElevenLabs TTS (最终修复版)
+        # ==========================================
+        elif tts_engine == 'elevenlabs':
+            from elevenlabs.client import ElevenLabs as ElevenLabsClient
+            
+            api_key = tts_settings.get('elevenLabsApiKey', '')
+            voice_id = tts_settings.get('elevenLabsVoice', '')
+            model_id = tts_settings.get('elevenLabsModel', 'eleven_multilingual_v2')
+            rate = float(tts_settings.get('elevenLabsRate', 1.0))
+            
+            if not api_key:
+                raise HTTPException(status_code=400, detail="ElevenLabs API Key 未配置")
+            if not voice_id:
+                raise HTTPException(status_code=400, detail="ElevenLabs Voice ID 未配置")
+            
+            if mobile_optimized:
+                rate = min(rate * 0.95, 1.2)
+            
+            client = ElevenLabsClient(api_key=api_key)
+            
+            # 1. 【修复关键点】提前建立连接和请求！如果 Voice ID 错误，这里会立即抛出异常
+            # 此时因为还没有进入 StreamingResponse，抛出 HTTPException 状态码修改是完全合法的
+            try:
+                audio_stream = await asyncio.to_thread(
+                    client.text_to_speech.convert,
+                    text=text,
+                    voice_id=voice_id,
+                    model_id=model_id or 'eleven_multilingual_v2',
+                    output_format='mp3_44100_128'
+                )
+            except Exception as e:
+                error_msg = str(e)
+                if "API key" in error_msg.lower() or "authentication" in error_msg.lower():
+                    raise HTTPException(status_code=401, detail="ElevenLabs API Key 无效")
+                elif "voice" in error_msg.lower() or "not found" in error_msg.lower():
+                    raise HTTPException(status_code=400, detail=f"Voice ID 无效: {voice_id}")
+                elif "model" in error_msg.lower():
+                    raise HTTPException(status_code=400, detail=f"Model ID 无效: {model_id}")
+                elif "credit" in error_msg.lower() or "quota" in error_msg.lower() or "characters" in error_msg.lower():
+                    raise HTTPException(status_code=429, detail="ElevenLabs 额度不足")
+                else:
+                    raise HTTPException(status_code=502, detail=f"ElevenLabs 服务错误: {error_msg}")
+
+            async def generate_audio():
+                # 2. 【性能修复】利用线程池安全地拉取同步生成器的数据，避免阻塞并发循环
+                def get_next_chunk():
+                    try:
+                        return next(audio_stream)
+                    except StopIteration:
+                        return None
+
+                while True:
+                    try:
+                        chunk = await asyncio.to_thread(get_next_chunk)
+                        if chunk is None:
+                            break
+                        if chunk:
+                            yield chunk
+                    except Exception as e:
+                        # 注意：在这里如果流传输中断了，不能再 raise HTTPException 了，只需中断流即可
+                        print(f"ElevenLabs 传输中断: {str(e)}")
+                        break
+
+            # 移动端：转换为 opus（需要先收集所有 chunk）
+            if target_format == "opus":
+                async def generate_opus():
+                    collected = bytearray()
+                    async for chunk in generate_audio():
+                        collected.extend(chunk)
+                    if collected:
+                        res = await asyncio.to_thread(convert_to_opus_simple, bytes(collected))
+                        final = res[0] if isinstance(res, tuple) else res
+                        for i in range(0, len(final), 4096):
+                            yield final[i:i + 4096]
+                return StreamingResponse(
+                    generate_opus(),
+                    media_type="audio/ogg",
+                    headers={
+                        "Content-Disposition": f"inline; filename=tts_{index}.opus",
+                        "X-Audio-Index": str(index),
+                        "X-Audio-Format": "opus"
+                    }
+                )
+            else:
+                # MP3 直接流式返回 generator
+                return StreamingResponse(
+                    generate_audio(),
+                    media_type="audio/mpeg",
+                    headers={
+                        "Content-Disposition": f"inline; filename=tts_{index}.mp3",
+                        "X-Audio-Index": str(index),
+                        "X-Audio-Format": "mp3"
+                    }
+                )
         raise HTTPException(status_code=400, detail="不支持的TTS引擎")
     
     except Exception as e:
@@ -7650,7 +7863,7 @@ async def list_tetos_voices(request: Request):
                             del os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 
             else:
-                raise ValueError(f"不支持的 tetos 提供商: {provider}")
+                pass
 
             return voices
 
@@ -8265,87 +8478,89 @@ async def health_check():
 @app.post("/load_file")
 async def load_file_endpoint(request: Request, files: List[UploadFile] = File(None)):
     fastapi_base_url = str(request.base_url)
-    logger.info(f"Received request with content type: {request.headers.get('Content-Type')}")
     file_links = []
     textFiles = []
     imageFiles = []
+    vedioFiles = []
+    
+    # 辅助函数：根据后缀名判断类型
+    def get_file_type(ext):
+        ext = ext.lower().lstrip('.')
+        if ext in ALLOWED_IMAGE_EXTENSIONS:
+            return 'image'
+        if ext in ALLOWED_VIDEO_EXTENSIONS:
+            return 'video'
+        return 'file'
+
     content_type = request.headers.get('Content-Type', '')
     try:
         if 'multipart/form-data' in content_type:
-            # 处理浏览器上传的文件
-            if not files:
-                raise HTTPException(status_code=400, detail="No files provided")
-            
             for file in files:
                 file_extension = os.path.splitext(file.filename)[1]
                 unique_filename = f"{uuid.uuid4()}{file_extension}"
                 destination = os.path.join(UPLOAD_FILES_DIR, unique_filename)
                 
-                # 保存上传的文件
                 with open(destination, "wb") as buffer:
                     content = await file.read()
                     buffer.write(content)
                 
+                # ✨ 修改点：根据后缀决定 type
+                current_type = get_file_type(file_extension)
+                
                 file_link = {
                     "path": f"{fastapi_base_url}uploaded_files/{unique_filename}",
-                    "name": file.filename
+                    "name": file.filename,
+                    "type": current_type  # 返回给前端
                 }
                 file_links.append(file_link)
-                file_meta = {
-                    "unique_filename": unique_filename,
-                    "original_filename": file.filename,
-                }
-                # file_extension移除点号
-                file_extension = file_extension[1:]
-                if file_extension in ALLOWED_EXTENSIONS:
+                
+                # 兼容原有的分类列表
+                file_meta = {"unique_filename": unique_filename, "original_filename": file.filename}
+                ext_clean = file_extension[1:].lower()
+                if ext_clean in ALLOWED_EXTENSIONS:
                     textFiles.append(file_meta)
-                elif file_extension in ALLOWED_IMAGE_EXTENSIONS:
+                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS:
                     imageFiles.append(file_meta)
+                elif ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                    vedioFiles.append(file_meta)
+
         elif 'application/json' in content_type:
-            # 处理Electron发送的JSON文件路径
             data = await request.json()
-            logger.info(f"Processing JSON data: {data}")
-            
             for file_info in data.get("files", []):
                 file_path = file_info.get("path")
                 file_name = file_info.get("name", os.path.basename(file_path))
-                
-                if not os.path.isfile(file_path):
-                    logger.error(f"File not found: {file_path}")
-                    continue
-                
-                # 生成唯一文件名
                 file_extension = os.path.splitext(file_name)[1]
+                
                 unique_filename = f"{uuid.uuid4()}{file_extension}"
                 destination = os.path.join(UPLOAD_FILES_DIR, unique_filename)
                 
-                # 复制文件到上传目录
                 with open(file_path, "rb") as src, open(destination, "wb") as dst:
                     dst.write(src.read())
                 
+                # ✨ 修改点：根据后缀决定 type
+                current_type = get_file_type(file_extension)
+                
                 file_link = {
                     "path": f"{fastapi_base_url}uploaded_files/{unique_filename}",
-                    "name": file_name
+                    "name": file_name,
+                    "type": current_type
                 }
                 file_links.append(file_link)
-                file_meta = {
-                    "unique_filename": unique_filename,
-                    "original_filename": file_name,
-                }
-                # file_extension移除点号
-                file_extension = file_extension[1:]
-                if file_extension in ALLOWED_EXTENSIONS:
+                
+                file_meta = {"unique_filename": unique_filename, "original_filename": file_name}
+                ext_clean = file_extension[1:].lower()
+                if ext_clean in ALLOWED_EXTENSIONS:
                     textFiles.append(file_meta)
-                elif file_extension in ALLOWED_IMAGE_EXTENSIONS:
+                elif ext_clean in ALLOWED_IMAGE_EXTENSIONS:
                     imageFiles.append(file_meta)
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported Content-Type")
-        return JSONResponse(content={"success": True, "fileLinks": file_links , "textFiles": textFiles, "imageFiles": imageFiles})
+                elif ext_clean in ALLOWED_VIDEO_EXTENSIONS:
+                    vedioFiles.append(file_meta)
+
+        return JSONResponse(content={"success": True, "fileLinks": file_links, "textFiles": textFiles, "imageFiles": imageFiles, "vedioFiles": vedioFiles})
     
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.delete("/delete_file")
 async def delete_file_endpoint(request: Request):
@@ -8547,7 +8762,6 @@ async def get_default_vrm_models(request: Request):
         
         # 按名称排序
         models.sort(key=lambda x: x['name'])
-        print("models:",models)
         return JSONResponse(content={
             "success": True,
             "models": models
@@ -10011,6 +10225,15 @@ app.mount("/", StaticFiles(directory=os.path.join(base_path, "static"), html=Tru
 # 简化main函数
 if __name__ == "__main__":
     import uvicorn
+
+    # 格式化显示地址
+    display_host = "127.0.0.1" if HOST == "0.0.0.0" else HOST
+    
+    print("\n" + "="*50)
+    print(f"🚀 后端服务已启动")
+    print(f"🔗 本地运行地址: http://{display_host}:{PORT}")
+    print(f"📖 API 文档地址: http://{display_host}:{PORT}/docs") # 如果是 FastAPI
+    print("="*50 + "\n")
 
     uvicorn.run(
         app,

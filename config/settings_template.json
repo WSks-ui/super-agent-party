@@ -122,6 +122,9 @@
       "when": "after_thinking",
       "duckduckgo_max_results": 10,
       "searxng_url": "http://127.0.0.1:8080",
+      "searxng_categories": "general",
+      "searxng_engines": "baidu,bing,sogou,360search,quark",
+      "searxng_is_select": false,
       "searxng_max_results": 10,
       "tavily_max_results": 10,
       "tavily_api_key": "",
@@ -181,7 +184,8 @@
       "enabled": false,
       "visibilityScope": "workspace",
       "engine": "local",
-      "cc_path": ""
+      "cc_path": "",
+      "shortcut": true
     },
     "visionControlSettings":{
       "enabled": false,
@@ -351,6 +355,10 @@
       "fishVoice": "",
       "googleServiceAccount": "",
       "googleVoice": "",
+      "elevenLabsApiKey": "",
+      "elevenLabsVoice": "JBFqnCBsd6RMkjVDRZzb",
+      "elevenLabsModel": "eleven_multilingual_v2",
+      "elevenLabsRate": 1.0,
       "newtts":{}
     },
     "largeMoreButtonDict":[

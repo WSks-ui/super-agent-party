@@ -72,4 +72,5 @@ dependencies = [
     "slack-sdk>=3.39.0",
     "dingtalk-stream>=0.24.3",
     "pyautogui>=0.9.54",
+    "elevenlabs>=2.41.0",
 ]

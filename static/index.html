@@ -777,11 +777,20 @@ function updateElement(el, rawMarkdown, formatFn) {
                               v-if="message.fileLinks?.length || message.imageLinks?.length">
                             
 
-                              <!-- 2. 图片附件 (统一方块) -->
-                              <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">
-                                  <div class="preview-image-box">
-                                      <!-- 图片不需要反色，保持原样 -->
-                                      <img :src="formatFileUrl(img.path)" />
+                              <!-- 1. 视频/图片附件 -->
+                              <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" 
+                                  :class="['attachment-item-display', img.type === 'video' ? 'video-item-wrapper' : 'image-item-wrapper']">
+                                  
+                                  <div class="preview-media-box">
+                                      <template v-if="img.type === 'video'">
+                                          <!-- 视频预览 -->
+                                          <video :src="formatFileUrl(img.path)" preload="metadata" controls></video>
+                                      </template>
+                                      
+                                      <template v-else>
+                                          <!-- 图片预览 -->
+                                          <img :src="formatFileUrl(img.path)" />
+                                      </template>
                                   </div>
                               </div>
 
@@ -1356,14 +1365,19 @@ function updateElement(el, rawMarkdown, formatFn) {
                     <div v-for="(item, index) in allItems" :key="index" class="attachment-item">
                       
                       <!-- 图片类型 -->
-                      <div v-if="item.type === 'image'" class="preview-image-box">
-                        <img :src="item.path" alt="preview" />
+                      <div v-if="item.uiCategory === 'image'" class="preview-image-box">
+                        <video v-if="item.detectedType === 'video'" 
+                              :src="formatFileUrl(item.path)" 
+                              controls 
+                              style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </video>
+                        <img v-else :src="formatFileUrl(item.path)" />
                         <div class="overlay">
                           <el-button 
                             type="danger" 
                             circle 
                             size="small" 
-                            @click.stop="removeItem(index, item.type)"
+                            @click.stop="removeItem(index, item.uiCategory)"
                           >
                             <i class="fa-solid fa-trash"></i>
                           </el-button>
@@ -1378,7 +1392,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <div class="file-info">
                           <span class="file-name" :title="item.name">{{ item.name }}</span>
                         </div>
-                        <div class="remove-btn" @click.stop="removeItem(index, item.type)">
+                        <div class="remove-btn" @click.stop="removeItem(index, item.uiCategory)">
                           <i class="fa-solid fa-xmark"></i>
                         </div>
                       </div>
@@ -1815,7 +1829,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                                         <div class="node-label" 
                                             style="display: flex; align-items: center; gap: 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
                                             @dblclick="data.isDirectory ? null : openWorkspaceFile(data.path)"
-                                            @click="data.isDirectory ? node.expanded = !node.expanded : null">
+                                            @click="data.isDirectory ? (node.expanded = !node.expanded) : handleFileShortcut(data.path)">
                                             
                                             <i :class="data.isDirectory ? (node.expanded ? 'fa-solid fa-folder-open' : 'fa-solid fa-folder') : 'fa-regular fa-file-lines'" 
                                               :style="{ color: data.isDirectory ? '#E6A23C' : 'var(--el-text-color-regular)' }"></i>
@@ -5310,7 +5324,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-form-item :label="t('enableOmniTTS')" class="form-item-align" label-position="left">
                         <el-switch 
                           v-model="settings.enableOmniTTS" 
-                          @change="autoSaveSettings"
+                          @change="handleOmniTTSenabled(settings.enableOmniTTS)"
                         ></el-switch>
                       </el-form-item>
                       <el-form-item v-if="settings.enableOmniTTS" :label="t('enabledInterruption')" class="form-item-align" label-position="left">
@@ -6665,6 +6679,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                           <el-option label="Minimax" value="minimax"></el-option>
                           <el-option label="Xunfei (讯飞)" value="xunfei"></el-option>
                           <el-option label="Fish Audio" value="fish"></el-option>
+                          <el-option label="Elevenlabs" value="elevenlabs"></el-option>
                         </el-select>
                       </el-form-item>
                       <el-form-item :label="t('separators')">
@@ -6922,6 +6937,81 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </template>
                     </el-alert>
+                  </div>
+
+                  <!-- ================= ElevenLabs TTS ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'elevenlabs'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>
+                          <el-icon><i class="fa-solid fa-wave-square"></i></el-icon> 
+                          ElevenLabs
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://elevenlabs.io/app/settings/api-keys" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1"><i class="fa-solid fa-key"></i></el-icon>
+                            {{ t('getAPIkey') || 'Get API Key' }}
+                          </el-link>
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div class="tool-content">
+                      <!-- API Key -->
+                      <el-form-item label="API Key" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsApiKey" 
+                          type="password" 
+                          show-password
+                          placeholder="sk_xxxxxxxxxxxx" 
+                          @change="autoSaveSettings"
+                        />
+                      </el-form-item>
+                      
+                      <!-- Voice ID (手动填写) -->
+                      <el-form-item label="Voice ID" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsVoice" 
+                          placeholder="e.g. JBFqnCBsd6RMkjVDRZzb" 
+                          @change="autoSaveSettings"
+                        >
+                          <template #append>
+                            <el-link 
+                              type="primary" 
+                              href="https://elevenlabs.io/app/voice-library" 
+                              target="_blank"
+                              style="padding: 0 10px;"
+                            >
+                              Browse Voices
+                            </el-link>
+                          </template>
+                        </el-input>
+                      </el-form-item>
+                      
+                      <!-- Model ID (手动填写，默认值) -->
+                      <el-form-item label="Model ID" class="form-item-align">
+                        <el-input 
+                          v-model="ttsSettings.elevenLabsModel" 
+                          placeholder="e.g. eleven_multilingual_v2" 
+                          @change="autoSaveSettings"
+                        />
+                      </el-form-item>
+                      
+                      <!-- Rate Slider -->
+                      <el-form-item label="Rate" class="form-item-align">
+                        <el-slider
+                          v-model="ttsSettings.elevenLabsRate"
+                          :min="0.5"
+                          :max="2.0"
+                          :step="0.1"
+                          show-input
+                          @change="autoSaveSettings">
+                        </el-slider>
+                      </el-form-item>
+                    </div>
                   </div>
 
 
@@ -8375,8 +8465,26 @@ function updateElement(el, rawMarkdown, formatFn) {
                           </el-input>
                         </el-form-item>
 
-                      </div>
+                        <el-form-item :label="t('enabledShortCut')" class="form-item-align" label-position="left">
+                          <el-switch
+                            v-model="CLISettings.shortcut"
+                            @change="autoSaveSettings"
+                            class="tool-switch"
+                          ></el-switch>
+                        </el-form-item>
 
+                      </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        class="mb-2"
+                      >
+                        <template #default>
+                          <div class="alert-content">
+                            {{ t('shortcutNotice1') }}
+                          </div>
+                        </template>
+                      </el-alert>
                     </div>
 
                     <!-- 本地环境配置 -->
@@ -9004,6 +9112,25 @@ function updateElement(el, rawMarkdown, formatFn) {
                           class="full-width-input"
                         />
                       </el-form-item>
+                      <el-form-item :label="t('searxngCustomEngine')" class="form-item-align" label-position="left">
+                        <el-switch
+                          v-model="webSearchSettings.searxng_is_select"
+                          @change="autoSaveSettings"
+                        />
+                      </el-form-item>
+                      <el-form-item 
+                        v-show="webSearchSettings.searxng_is_select"
+                        :label="t('searxngEngines')" 
+                        class="form-item-align"
+                      >
+                        <el-input
+                          v-model="webSearchSettings.searxng_engines"
+                          :placeholder="t('searxngEnginesPlaceholder')"
+                          @input="autoSaveSettings"
+                          class="full-width-input"
+                        />
+                      </el-form-item>
+
                     </div>
                   </div>
                   <div class="tool-item" v-show="webSearchSettings.engine === 'tavily'">
@@ -11177,46 +11304,31 @@ function updateElement(el, rawMarkdown, formatFn) {
                 </el-dialog>
               </div>
               <!-- 视频存储 -->
-              <div v-show="subMenu === 'video'" class="page video-container">
-                <!-- 新增顶部工具栏 -->
-                <div class="toolbar">
-                  <el-checkbox
-                    v-model="allVideosChecked"
-                    :indeterminate="indeterminateVideos"
-                    @change="toggleAllVideos">
-                    {{ t('selectAll') }}
-                  </el-checkbox>
-                  <el-button
-                    type="danger"
-                    :disabled="selectedVideos.length === 0"
-                    @click="batchDeleteVideos">
-                    <i class="fa-solid fa-trash"></i>
-                    {{ t('batchDelete') }}
-                  </el-button>
-                </div>
-                <div class="video-list">
-                  <div class="video-item" v-for="(video, index) in videoFiles" :key="index">
-                    <div class="video-wrapper">
-                      <!-- 视频播放器 -->
-                      <video controls>
-                        <source :src="`${partyURL}/uploaded_files/${video.unique_filename}`" type="video/mp4">
-                        Your browser does not support the video tag.
-                      </video>
-                      <!-- 复选框 -->
-                      <el-checkbox
-                        v-model="selectedVideos"
-                        :label="video.unique_filename"
-                        class="checkbox-no-label">
-                      </el-checkbox>
-                      <!-- 删除按钮定位在视频右上角 -->
-                      <el-button class="delete-overlay-btn" type="danger" circle @click="deleteVideo(video)">
-                        <i class="fa-solid fa-trash"></i>
-                      </el-button>
-                    </div>
+              <div v-show="subMenu === 'video'" class="video-list">
+                <div class="video-item" v-for="(video, index) in videoFiles" :key="index">
+                  <div class="video-wrapper">
+                    <!-- 视频播放器 -->
+                    <video controls preload="metadata">
+                      <source :src="`${partyURL}/uploaded_files/${video.unique_filename}`" type="video/mp4">
+                    </video>
+                    
+                    <!-- 复选框 -->
+                    <el-checkbox
+                      v-model="selectedVideos"
+                      :label="video.unique_filename"
+                      class="checkbox-no-label">
+                    </el-checkbox>
+                    
+                    <!-- 删除按钮 -->
+                    <el-button class="delete-overlay-btn" type="danger" circle size="small" @click="deleteVideo(video)">
+                      <i class="fa-solid fa-trash"></i>
+                    </el-button>
                   </div>
-                </div>
-                <div v-if="videoFiles.length === 0" class="no-Videos">
-                  <el-empty :description="t('noVideos')" />
+                  
+                  <!-- 新增：文件名展示区 -->
+                  <div class="video-info-footer" :title="video.original_filename">
+                    {{ video.original_filename }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -14391,52 +14503,124 @@ function updateElement(el, rawMarkdown, formatFn) {
               </div>
               <!-- 智能体页面 -->
               <div v-show="subMenu === 'agents'" class="page agents-container">
-                <!-- 磁贴网格 -->
-                <div class="provider-grid">
-                  <!-- 已有智能体 -->
-                  <div class="provider-card agent-card" v-for="agent in agents" :key="agent.id">
-                    <div class="card-header">
-                      <el-switch v-model="agent.enabled" @change="autoSaveSettings"></el-switch>
-                      <div class="card-actions">
-                        <!-- 更新删除按钮样式 -->
-                        <el-button @click="removeAgent(agent.id)" type="danger" circle size="small">
-                          <i class="fa-solid fa-trash"></i>
-                        </el-button>
+                <el-tabs v-model="activeAgentTab">
+                  
+                  <!-- 第一个 Tab：智能体设置 (原弹窗内容) -->
+                  <el-tab-pane :label="t('agentSettings')" name="settings">
+                    <el-form class="settings-form" label-position="top">
+                      <div class="tool-item">
+                        <div class="tool-header">
+                          <div class="header-left">
+                            <span>
+                              <el-icon>
+                                <i class="fa-solid fa-robot"></i>
+                              </el-icon>
+                              {{ t('agentSettings') }}
+                            </span>
+                          </div>
+                        </div>
+                        <div class="tool-content">
+                          
+                          <!-- 主智能体选择 -->
+                          <div class="agent-section">
+                            <h5>{{ t('mainAgent') }}</h5>
+                            <el-select 
+                              v-model="mainAgent"
+                              @change="changeMainAgent">
+                              <el-option
+                                :label="t('defaultAgent')"
+                                value="super-model"
+                              >
+                              </el-option>
+                              <el-option
+                                v-for="(agent, id) in agents"
+                                :key="id"
+                                :label="agent.name"
+                                :value="id"
+                              >
+                              </el-option>
+                            </el-select>
+                          </div>
+                          <!-- 工具智能体选择 -->
+                          <div class="agent-section">
+                            <h5>{{ t('toolAgents') }}</h5>
+                            <div 
+                              v-for="(agent, id) in agents" 
+                              :key="id"
+                              class="knowledge-item">
+                              <el-switch 
+                                v-model="agent.enabled"
+                                @change="autoSaveSettings">
+                              </el-switch>
+                              <div class="knowledge-info">
+                                <div class="knowledge-name">{{ agent.name }}</div>
+                              </div>
+                            </div>
+                            <div v-if="Object.keys(agents).length === 0" class="empty-tip">
+                              {{ t('noagents') }}
+                              <a href="#" @click.stop.prevent="switchToagents">{{ t('goToagents') }}</a>
+                              {{ t('add') }}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </el-form>
+                  </el-tab-pane>
+
+                  <!-- 第二个 Tab：管理与添加智能体 (原磁贴网格) -->
+                  <el-tab-pane :label="t('manageAgents')" name="add">
+                    <!-- 磁贴网格 -->
+                    <div class="provider-grid">
+                      <!-- 已有智能体 -->
+                      <div class="provider-card agent-card" v-for="agent in agents" :key="agent.id">
+                        <div class="card-header">
+                          <span></span>
+                          <div class="card-actions">
+                            <!-- 删除按钮 -->
+                            <el-button @click="removeAgent(agent.id)" type="danger" circle size="small">
+                              <i class="fa-solid fa-trash"></i>
+                            </el-button>
+                          </div>
+                        </div>
+                        
+                        <div class="agent-content">
+                          <div class="agent-header">
+                            <span class="agent-name">{{ agent.name }}</span>
+                            <!-- 复制功能 -->
+                            <el-button
+                              size="small"
+                              type="info"
+                              @click="copyAgentName(agent.name)"
+                            >
+                              <i class="fa-regular fa-copy"></i>
+                            </el-button>
+                          </div>
+                          <!-- 带复制功能的ID展示 -->
+                          <el-tag 
+                            type="info" 
+                            size="small" 
+                            class="agent-id clickable"
+                            @click="copyAgentId(agent.id)"
+                          >
+                            {{ agent.id }}
+                            <i class="fa-regular fa-copy"></i>
+                          </el-tag>
+                          <p class="agent-prompt">{{ agent.system_prompt }}</p>
+                        </div>
+                      </div>
+                      
+                      <!-- 添加新智能体 -->
+                      <div class="provider-card add-tile" @click="showAgentForm = true; newAgent.system_prompt = this.system_prompt">
+                        <el-icon :size="40" color="#909399"><i class="fa-solid fa-plus"></i></el-icon>
+                        <div style="color: #606266; margin-top: 10px;">{{ t('addNewAgent') }}</div>
                       </div>
                     </div>
-                    
-                    <div class="agent-content">
-                      <div class="agent-header">
-                        <span class="agent-name">{{ agent.name }}</span>
-                        <!-- 添加复制功能 -->
-                        <el-button
-                          size="small"
-                          type="info"
-                          @click="copyAgentName(agent.name)"
-                        >
-                          <i class="fa-regular fa-copy"></i>
-                        </el-button>
-                      </div>
-                      <!-- 带复制功能的ID展示 -->
-                      <el-tag 
-                        type="info" 
-                        size="small" 
-                        class="agent-id clickable"
-                        @click="copyAgentId(agent.id)"
-                      >
-                        {{ agent.id }}
-                        <i class="fa-regular fa-copy"></i>
-                      </el-tag>
-                      <p class="agent-prompt">{{ agent.system_prompt }}</p>
-                    </div>
-                  </div>
-                  <!-- 添加新智能体 -->
-                  <div class="provider-card add-tile" @click="showAgentForm = true;newAgent.system_prompt = this.system_prompt">
-                    <el-icon :size="40" color="#909399"><i class="fa-solid fa-plus"></i></el-icon>
-                    <div style="color: #606266; margin-top: 10px;">{{ t('addNewAgent') }}</div>
-                  </div>
-                </div>
-                <!-- 智能体编辑对话框 -->
+                  </el-tab-pane>
+
+                </el-tabs>
+
+                <!-- 智能体编辑对话框 (保持原样，放在 tabs 外面但在页面内) -->
                 <el-dialog v-model="showAgentForm" :title="editingAgent ? t('editAgent') : t('addAgent')" width="80%">
                   <el-form label-position="top">
                     <el-form-item :label="t('agentName')" required>
@@ -15299,34 +15483,43 @@ function updateElement(el, rawMarkdown, formatFn) {
                     <!-- 消息气泡主体 -->
                     <div class="message-content" v-if="!allBriefly||message.role !== 'system'||index === 0" :class="{ typing: message.role === 'assistant' && isTyping && index === messages.length - 1 }">
                       
-                    <!-- User 消息主体 -->
-                    <div v-if="message.role === 'user'" class="user-content" data-mjx-disabled="true">
-                        <div v-html="message.content" class="user-msg"></div>
+                      <!-- User 消息主体 -->
+                      <div v-if="message.role === 'user'" class="user-content" data-mjx-disabled="true">
+                          <div v-html="message.content" class="user-msg"></div>
 
-                        <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
-                        <div class="message-attachments-display user-msg-attachments" 
-                            v-if="message.fileLinks?.length || message.imageLinks?.length">
+                          <!-- 附件展示区：增加 user-msg-attachments 类名用于样式区分 -->
+                          <div class="message-attachments-display user-msg-attachments" 
+                              v-if="message.fileLinks?.length || message.imageLinks?.length">
                             
 
-                            <!-- 2. 图片附件 (统一方块) -->
-                            <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" class="attachment-item-display image-item">
-                                <div class="preview-image-box">
-                                    <!-- 图片不需要反色，保持原样 -->
-                                    <img :src="formatFileUrl(img.path)" />
-                                </div>
-                            </div>
+                              <!-- 1. 视频/图片附件 -->
+                              <div v-for="(img, imgIdx) in message.imageLinks" :key="'img-'+imgIdx" 
+                                  :class="['attachment-item-display', img.type === 'video' ? 'video-item-wrapper' : 'image-item-wrapper']">
+                                  
+                                  <div class="preview-media-box">
+                                      <template v-if="img.type === 'video'">
+                                          <!-- 视频预览 -->
+                                          <video :src="formatFileUrl(img.path)" preload="metadata" controls></video>
+                                      </template>
+                                      
+                                      <template v-else>
+                                          <!-- 图片预览 -->
+                                          <img :src="formatFileUrl(img.path)" />
+                                      </template>
+                                  </div>
+                              </div>
 
-                            <!-- 3. 文件附件 (反色版) -->
-                            <div v-for="(file, fileIdx) in message.fileLinks" :key="'file-'+fileIdx" class="attachment-item-display file-item">
-                                <div class="file-card-box">
-                                    <div class="file-icon"><i class="fa-solid fa-file-lines"></i></div>
-                                    <div class="file-info">
-                                        <span class="file-name" :title="file.name">{{ file.name }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                              <!-- 3. 文件附件 (反色版) -->
+                              <div v-for="(file, fileIdx) in message.fileLinks" :key="'file-'+fileIdx" class="attachment-item-display file-item">
+                                  <div class="file-card-box">
+                                      <div class="file-icon"><i class="fa-solid fa-file-lines"></i></div>
+                                      <div class="file-info">
+                                          <span class="file-name" :title="file.name">{{ file.name }}</span>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
                       
                       <!-- Assistant -->
                       <div v-else-if="message.role === 'assistant'" class="markdown-body">
@@ -15511,14 +15704,19 @@ function updateElement(el, rawMarkdown, formatFn) {
                           <div v-for="(item, index) in allItems" :key="index" class="attachment-item">
                             
                             <!-- 图片类型 -->
-                            <div v-if="item.type === 'image'" class="preview-image-box">
-                              <img :src="item.path" alt="preview" />
+                            <div v-if="item.uiCategory === 'image'" class="preview-image-box">
+                              <video v-if="item.detectedType === 'video'" 
+                                    :src="formatFileUrl(item.path)" 
+                                    controls 
+                                    style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                              </video>
+                              <img v-else :src="formatFileUrl(item.path)" />
                               <div class="overlay">
                                 <el-button 
                                   type="danger" 
                                   circle 
                                   size="small" 
-                                  @click.stop="removeItem(index, item.type)"
+                                  @click.stop="removeItem(index, item.uiCategory)"
                                 >
                                   <i class="fa-solid fa-trash"></i>
                                 </el-button>
