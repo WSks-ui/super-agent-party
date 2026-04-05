@@ -1,4 +1,5 @@
 import asyncio
+import time
 import pyautogui
 import pyperclip
 import platform
@@ -79,22 +80,38 @@ async def keyboard_type_async(text: str) -> str:
     输入文本。为了完美支持中文，采用剪贴板复制粘贴的方式。
     """
     def _type_text():
-        # 备份当前剪贴板
         old_clipboard = pyperclip.paste()
+        sys_os = platform.system()
+        
         try:
+            # 复制到剪贴板
             pyperclip.copy(text)
-            # 根据不同操作系统使用不同的粘贴快捷键
-            sys_os = platform.system()
+            
+            # 🔴 关键修复：等待剪贴板真正就绪（Windows/macOS/Linux 都需要）
+            time.sleep(0.15)  # 150ms 通常足够，可根据实际情况调整
+            
             if sys_os == "Darwin":  # macOS
-                pyautogui.hotkey("command", "v")
+                # 更可靠的方式：手动控制按键时序
+                pyautogui.keyDown('command')
+                pyautogui.keyDown('v')
+                pyautogui.keyUp('v')
+                pyautogui.keyUp('command')
             else:  # Windows/Linux
-                pyautogui.hotkey("ctrl", "v")
-        finally:
-            # 恢复剪贴板（可选，这里选择恢复以不干扰用户原本的剪贴板）
-            # 暂停一小会儿确保粘贴动作已触发
-            import time
+                pyautogui.keyDown('ctrl')
+                pyautogui.keyDown('v')
+                pyautogui.keyUp('v')
+                pyautogui.keyUp('ctrl')
+            
+            # 等待粘贴动作完成
             time.sleep(0.1)
-            pyperclip.copy(old_clipboard)
+            
+        finally:
+            # 恢复剪贴板前再等等，避免恢复过早
+            time.sleep(0.05)
+            try:
+                pyperclip.copy(old_clipboard)
+            except Exception:
+                pass  # 恢复失败不影响主流程
 
     await asyncio.to_thread(_type_text)
     return f"已成功通过键盘输入文本：'{text}'"
