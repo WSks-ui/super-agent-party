@@ -9209,6 +9209,15 @@ handleCreateSlackSeparator(val) {
     });
   },
 
+copySubtitleOverlayEndpoint(){
+  const url =  this.partyURL + '/subtitle_overlay';
+  navigator.clipboard.writeText(url).then(() => {
+    if(typeof showNotification === 'function') showNotification(this.t('copySuccess') || 'Copied!', 'success');
+  }).catch(() => {
+    if(typeof showNotification === 'function') showNotification('Copy failed', 'error');
+  });
+},
+
 // 处理弹幕队列 - 新版
   async processDanmuQueue() {
     try {

@@ -7274,6 +7274,7 @@ class TTSConnectionManager:
     def __init__(self):
         self.main_connections: List[WebSocket] = []
         self.vrm_connections: List[WebSocket] = []
+        self.overlay_connections: list[WebSocket] = []
 
     async def connect_main(self, websocket: WebSocket):
         await websocket.accept()
@@ -7320,6 +7321,36 @@ class TTSConnectionManager:
                 disconnected.append(connection)
         for conn in disconnected:
             self.disconnect_main(conn)
+
+    async def connect_overlay(self, websocket: WebSocket):
+        """字幕页专用连接"""
+        await websocket.accept()
+        self.overlay_connections.append(websocket)
+
+    def disconnect_overlay(self, websocket: WebSocket):
+        if websocket in self.overlay_connections:
+            self.overlay_connections.remove(websocket)
+
+    async def broadcast_to_vrm(self, message: Union[str, bytes]):
+        """核心广播逻辑：区分发送内容"""
+        # 1. 如果是二进制（音频流），只发给真正的 VRM 页面
+        if isinstance(message, bytes):
+            for conn in list(self.vrm_connections):
+                try: await conn.send_bytes(message)
+                except: self.disconnect_vrm(conn)
+        
+        # 2. 如果是字符串（指令/文字），发给 VRM 页面 和 字幕页面
+        else:
+            # 发给 VRM 窗口（同步表情、UI等）
+            for conn in list(self.vrm_connections):
+                try: await conn.send_text(message)
+                except: self.disconnect_vrm(conn)
+            
+            # 发给字幕窗口（显示文字）
+            for conn in list(self.overlay_connections):
+                try: await conn.send_text(message)
+                except: self.disconnect_overlay(conn)
+
 
 tts_manager = TTSConnectionManager()
 
@@ -7371,15 +7402,25 @@ async def vrm_websocket_endpoint(websocket: WebSocket):
         logging.error(f"WS error in VRM: {e}")
         tts_manager.disconnect_vrm(websocket)
 
+@app.websocket("/ws/subtitles")
+async def subtitles_websocket_endpoint(websocket: WebSocket):
+    """字幕叠加层专用端点：不参与音频播放判断"""
+    await tts_manager.connect_overlay(websocket)
+    try:
+        while True:
+            await websocket.receive_text() # 保持心跳
+    except WebSocketDisconnect:
+        tts_manager.disconnect_overlay(websocket)
+
 @app.get("/tts/status")
 async def get_tts_status():
-    """获取当前TTS连接状态"""
+    """获取连接状态：Vue 前端会调用这个来决定是否静音"""
     return {
-        "main_connections": len(tts_manager.main_connections),
+        # 重要：Vue 只根据 vrm_connections 的数量来判断是否静音浏览器
         "vrm_connections": len(tts_manager.vrm_connections),
-        "total_connections": len(tts_manager.main_connections) + len(tts_manager.vrm_connections)
+        "overlay_connections": len(tts_manager.overlay_connections),
+        "main_connections": len(tts_manager.main_connections)
     }
-
 
 @app.post("/tts")
 async def text_to_speech(request: Request):

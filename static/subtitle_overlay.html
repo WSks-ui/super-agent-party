@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>高级字幕串流 - 1.5x 放大版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;700&family=ZCOOL+KuaiLe&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            overflow: hidden;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        #subtitle-wrapper {
+            position: absolute;
+            bottom: 120px; /* 原 80px * 1.5 */
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+            perspective: 1500px; /* 视角距离也增加 */
+        }
+
+        #subtitle-box {
+            /* 高级毛玻璃 */
+            background: rgba(15, 15, 25, 0.75);
+            backdrop-filter: blur(18px) saturate(180%); /* 模糊程度略微增加 */
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            
+            /* 渐变边框效果 */
+            border: 2.25px solid rgba(255, 255, 255, 0.1); /* 原 1.5px * 1.5 */
+            border-top: 2.25px solid rgba(255, 255, 255, 0.3);
+            
+            /* 多重阴影 */
+            box-shadow: 
+                0 22.5px 52.5px rgba(0, 0, 0, 0.5), /* 偏移量等比例放大 */
+                0 0 22.5px rgba(56, 189, 248, 0.15);
+            
+            padding: 21px 54px; /* 原 14px 36px * 1.5 */
+            border-radius: 30px; /* 原 20px * 1.5 */
+            
+            max-width: 85%; /* 稍微放宽一点限制 */
+            min-width: 300px; /* 原 200px * 1.5 */
+            
+            /* 进场动画 */
+            opacity: 0;
+            transform: translateY(45px) scale(0.9) rotateX(-10deg); /* 45px = 30 * 1.5 */
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 字幕盒子的装饰条 */
+        #subtitle-box::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 20%;
+            height: 60%;
+            width: 6px; /* 原 4px * 1.5 */
+            background: linear-gradient(to bottom, #38bdf8, #818cf8);
+            border-radius: 0 6px 6px 0;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+        }
+
+        #subtitle-box.active {
+            opacity: 1;
+            transform: translateY(0) scale(1) rotateX(0deg);
+        }
+
+        #subtitle-text {
+            color: #ffffff;
+            font-size: 51px; /* 原 34px * 1.5 */
+            font-weight: 700;
+            line-height: 1.5;
+            text-align: center;
+            word-wrap: break-word;
+            
+            /* 文字多重阴影 */
+            text-shadow: 
+                0 3px 6px rgba(0, 0, 0, 0.5),
+                0 0 30px rgba(0, 0, 0, 0.2);
+                
+            letter-spacing: 2.25px; /* 原 1.5px * 1.5 */
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 强调词 */
+        .highlight {
+            color: #38bdf8;
+            text-shadow: 0 0 18px rgba(56, 189, 248, 0.6);
+            font-weight: 700;
+            margin: 0 6px; /* 原 4px * 1.5 */
+        }
+
+        /* 扫光动画 */
+        #subtitle-box::after {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                45deg,
+                transparent 45%,
+                rgba(255, 255, 255, 0.05) 50%,
+                transparent 55%
+            );
+            animation: sweep 4s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes sweep {
+            0% { transform: translateX(-100%) translateY(-100%); }
+            100% { transform: translateX(100%) translateY(100%); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="subtitle-wrapper">
+        <div id="subtitle-box">
+            <div id="subtitle-text"></div>
+        </div>
+    </div>
+
+    <script>
+        const box = document.getElementById('subtitle-box');
+        const textEl = document.getElementById('subtitle-text');
+        let hideTimer = null;
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/subtitles`;
+            const ws = new WebSocket(wsUrl);
+
+            ws.onmessage = function(event) {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'startSpeaking' && msg.data.text) {
+                        updateSubtitle(msg.data.text);
+                    } else if (msg.type === 'allChunksCompleted') {
+                        hideSubtitle();
+                    }
+                } catch (e) {}
+            };
+            
+            ws.onclose = () => setTimeout(connect, 2000);
+        }
+
+        function updateSubtitle(text) {
+            const cleanText = text.replace(/<[^>]+>/g, '').trim();
+            if (!cleanText) return;
+
+            textEl.textContent = cleanText;
+            box.classList.add('active');
+
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(hideSubtitle, 7000); 
+        }
+
+        function hideSubtitle() {
+            box.classList.remove('active');
+        }
+
+        connect();
+    </script>
+</body>
+</html>

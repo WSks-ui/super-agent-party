@@ -14045,19 +14045,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                               >
                                 {{ t('vrmAPIInstructions') }}
                               </el-alert>
-                              <el-form-item :label="t('danmakuOverlayUrl') || 'Danmaku Overlay URL'" class="form-item-align" label-position="top">
-                                <el-input
-                                  :value="partyURL+'/danmaku_overlay'"
-                                  readonly
-                                  class="full-width-input"
-                                >
-                                  <template #append>
-                                    <el-button @click="copyDanmakuOverlayEndpoint" class="copy-btn">
-                                      <i class="fa-solid fa-copy"></i>
-                                    </el-button>
-                                  </template>
-                                </el-input>
-                              </el-form-item>
+
                               <!-- API端点 -->
                               <el-form-item :label="t('apiEndpoint')" class="form-item-align" label-position="top">
                                 <el-input
@@ -14092,6 +14080,34 @@ function updateElement(el, rawMarkdown, formatFn) {
                                   </template>
                                 </el-input>
                               </el-form-item>
+                              <el-form-item :label="t('danmakuOverlayUrl') || 'Danmaku Overlay URL'" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/danmaku_overlay'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button @click="copyDanmakuOverlayEndpoint" class="copy-btn">
+                                      <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
+
+                              <el-form-item :label="t('subtitleOverlayUrl') || 'subtitle Overlay URL'" class="form-item-align" label-position="top">
+                                <el-input
+                                  :value="partyURL+'/subtitle_overlay'"
+                                  readonly
+                                  class="full-width-input"
+                                >
+                                  <template #append>
+                                    <el-button @click="copySubtitleOverlayEndpoint" class="copy-btn">
+                                      <i class="fa-solid fa-copy"></i>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                              </el-form-item>
+
                             </div>
                           </div>
                         </el-form>

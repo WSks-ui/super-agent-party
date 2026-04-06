@@ -1,6 +1,16 @@
 import json
+import os
+import sys
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+
+def get_base_path():
+    if getattr(sys, 'frozen', False):
+        return sys._MEIPASS
+    else:
+        return os.path.abspath(".")
+
+base_path = get_base_path()
 
 # 定义子路由
 router = APIRouter()
@@ -47,62 +57,26 @@ async def clear_danmaku_overlay():
     await overlay_manager.broadcast({"action": "clear"})
     return {"status": "ok"}
 
-@router.get("/danmaku_overlay", response_class=HTMLResponse)
+@router.get("/subtitle_overlay")
+async def get_subtitle_overlay():
+    # 使用 base_path 拼接路径，确保打包后也能访问
+    file_path = os.path.join(base_path, "static", "subtitle_overlay.html")
+    
+    # 检查文件是否存在
+    if not os.path.exists(file_path):
+        # 也可以返回 HTMLResponse("文件未找到", status_code=404)
+        return {"error": "Subtitle overlay file not found"}, 404
+        
+    return FileResponse(file_path)
+
+
+@router.get("/danmaku_overlay")
 async def get_danmaku_overlay():
-    # 将 HTML 字符串放在函数内部或单独的文件中，避免占用主内存空间
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <title>当前回复弹幕</title>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
-            body { margin: 0; padding: 0; background-color: transparent; overflow: hidden; font-family: 'Noto Sans SC', sans-serif; }
-            #danmaku-container {
-                position: absolute; bottom: 50px; left: -600px; width: fit-content; min-width: 300px; max-width: 550px;
-                background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                color: #f1f5f9; padding: 16px 24px; border-radius: 12px 24px 24px 12px;
-                border-left: 6px solid #38bdf8; box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-                display: flex; flex-direction: column; gap: 8px;
-                transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); opacity: 0;
-            }
-            #danmaku-container.show { left: 30px; opacity: 1; }
-            .header { display: flex; align-items: center; gap: 8px; }
-            .live-dot { width: 8px; height: 8px; background-color: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8; animation: pulse 1.5s infinite; }
-            .title { font-size: 14px; font-weight: 700; color: #7dd3fc; text-transform: uppercase; letter-spacing: 1.5px; }
-            .content { font-size: 22px; font-weight: 400; line-height: 1.5; word-wrap: break-word; text-shadow: 0 0 8px rgba(255,255,255,0.1); }
-            @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
-        </style>
-    </head>
-    <body>
-        <div id="danmaku-container">
-            <div class="header"><div class="live-dot"></div><div class="title">New Message</div></div>
-            <div class="content" id="danmaku-content"></div>
-        </div>
-        <script>
-            const container = document.getElementById('danmaku-container');
-            const contentEl = document.getElementById('danmaku-content');
-            function connect() {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = protocol + '//' + window.location.host + '/ws/overlay';
-                const ws = new WebSocket(wsUrl);
-                ws.onmessage = function(event) {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        if (msg.action === 'show') {
-                            contentEl.textContent = msg.data.content || '';
-                            container.classList.add('show');
-                        } else if (msg.action === 'clear') {
-                            container.classList.remove('show');
-                        }
-                    } catch (e) {}
-                };
-                ws.onclose = function() { setTimeout(connect, 2000); };
-            }
-            connect();
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+    # 拼接文件的绝对路径
+    file_path = os.path.join(base_path, "static", "danmaku_overlay.html")
+    
+    # 检查文件是否存在，防止 500 错误
+    if not os.path.exists(file_path):
+        return {"error": "Overlay file not found"}, 404
+        
+    return FileResponse(file_path)
