@@ -8414,6 +8414,12 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-form-item :label="t('realtimeDesktopVision')" class="form-item-align" label-position="left">
                         <el-switch v-model="visionControlSettings.desktopVision" @click.stop @change="autoSaveSettings"/>
                       </el-form-item>
+                      <el-form-item :label="t('onlyNewScreen')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.onlyNewScreen" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item :label="t('isEnableGrid')" class="form-item-align" label-position="left">
+                        <el-switch v-model="visionControlSettings.isEnableGrid" @click.stop @change="autoSaveSettings"/>
+                      </el-form-item>
                     </div>
 
                   </div>

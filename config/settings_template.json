@@ -191,7 +191,9 @@
       "enabled": false,
       "mouse":true,
       "keyboard":true,
-      "desktopVision": true
+      "desktopVision": true,
+      "onlyNewScreen": true,
+      "isEnableGrid": true
     },
     "ccSettings": {
       "enabled":true,
