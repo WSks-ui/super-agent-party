@@ -2420,45 +2420,47 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         if should_capture:
             try:
                 import pyautogui
+                
+                # 判定是否启用网格辅助 (必须在 vision_control_enabled 开启的前提下)
+                is_grid_enabled = vision_control_enabled and settings.get('visionControlSettings', {}).get('isEnableGrid', False)
 
-                print("正在执行带网格的桌面截图...")
+                print(f"正在执行桌面截图 (网格辅助: {'开启' if is_grid_enabled else '关闭'})...")
                 
-                # 1. 获取逻辑尺寸
+                # 1. 获取逻辑尺寸并捕获
                 logical_width, logical_height = pyautogui.size()
-                
-                # 2. 捕获屏幕
                 screenshot = await asyncio.to_thread(pyautogui.screenshot)
                 
-                # 3. 强制 Resize 到逻辑坐标系 (解决 Windows 偏移的核心)
+                # 2. 统一缩放到逻辑坐标系 (解决 Windows DPI 缩放偏移)
                 if screenshot.width != logical_width or screenshot.height != logical_height:
                     screenshot = await asyncio.to_thread(
                         screenshot.resize, (logical_width, logical_height), Image.Resampling.LANCZOS
                     )
                 
+                # 3. 缩放到传输尺寸 (1280x720 左右，平衡清晰度与 Token 消耗)
                 target_w, target_h = scale_to_fit(logical_width, logical_height, 1280, 720)
-                
                 if screenshot.width > target_w or screenshot.height > target_h:
-                    print(f"检测到高分辨率屏幕，正在从 {screenshot.size} 缩放到 {(target_w, target_h)}")
                     screenshot = await asyncio.to_thread(
                         screenshot.resize, (target_w, target_h), Image.Resampling.LANCZOS
                     )
 
-                # 4. 【新增】绘制数字网格
-                # 我们在副本上画网格，以免破坏原始截图（如果以后需要的话）
-                grid_image = await asyncio.to_thread(draw_grid_on_image, screenshot.copy(), grid_spacing=10)
-                
-                # 5. 保存并注入
-                desktop_img_name = f"desktop_grid_{uuid.uuid4().hex}.png"
+                # 4. 根据设置决定是否绘制网格
+                if is_grid_enabled:
+                    # 在副本上绘制网格
+                    display_image = await asyncio.to_thread(draw_grid_on_image, screenshot.copy(), grid_spacing=10)
+                    grid_hint = "\n\n【system info】Current desktop screenshot with coordinate grid (0-1000) is injected. Use coordinates for precise clicking."
+                else:
+                    display_image = screenshot
+                    grid_hint = "\n\n【system info】Current desktop screenshot is injected."
+
+                # 5. 保存图片
+                file_prefix = "desktop_grid" if is_grid_enabled else "desktop_plain"
+                desktop_img_name = f"{file_prefix}_{uuid.uuid4().hex}.png"
                 desktop_img_path = os.path.join(UPLOAD_FILES_DIR, desktop_img_name)
                 
-                # 保存处理后的带网格图片
-                await asyncio.to_thread(grid_image.save, desktop_img_path, optimize=True)
-                
+                await asyncio.to_thread(display_image.save, desktop_img_path, optimize=True)
                 desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
                 
-                # 6. 修改 Prompt，引导 AI 使用网格
-                grid_hint = " (图片已叠加 10x10 百分比网格，请参考红色数字和网格线准确定位坐标)"
-                
+                # 6. 注入到当前消息
                 current_user_msg = request.messages[-1]
                 if isinstance(current_user_msg['content'], str):
                     original_text = current_user_msg['content']
@@ -2471,10 +2473,24 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         {"type": "image_url", "image_url": {"url": desktop_url}}
                     )
                 
-                print(f"带网格截图已注入: {desktop_url}")
-                
+                # 7. 清理历史截图 (如果开启了 onlyNewScreen)
+                if settings.get('visionControlSettings', {}).get('onlyNewScreen', False):
+                    for msg in request.messages[:-1]: # 不处理最后一条刚刚添加的消息
+                        if isinstance(msg.get('content'), list):
+                            # 过滤掉 image_url，只保留 text
+                            new_content = [item for item in msg['content'] if item.get('type') != 'image_url']
+                            # 如果 list 里只剩文本，简化为字符串提高处理效率
+                            if len(new_content) == 1 and new_content[0].get('type') == 'text':
+                                msg['content'] = new_content[0]['text']
+                            else:
+                                msg['content'] = new_content
+                    print("已清理历史上下文中的旧截图。")
+
+                print(f"桌面截图已注入: {desktop_url}")
+
             except Exception as e:
                 print(f"后端桌面截图失败: {e}")
+
         max_rounds = settings.get("max_rounds", 0)
 
         if max_rounds > 0 and request.messages:
@@ -4195,6 +4211,7 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                     if vision_control_enabled and (results =='[Getting screenshot]' or settings.get('visionControlSettings', {}).get('desktopVision', False)):
                         try:
                             import pyautogui
+                            is_grid_enabled = settings.get('visionControlSettings', {}).get('isEnableGrid', False)
 
                             print("正在执行带网格的桌面截图...")
                             
@@ -4218,16 +4235,21 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                                     screenshot.resize, (target_w, target_h), Image.Resampling.LANCZOS
                                 )
 
-                            # 4. 【新增】绘制数字网格
-                            # 我们在副本上画网格，以免破坏原始截图（如果以后需要的话）
-                            grid_image = await asyncio.to_thread(draw_grid_on_image, screenshot.copy(), grid_spacing=10)
+                            # 4. 根据设置决定是否绘制网格
+                            if is_grid_enabled:
+                                # 在副本上绘制网格
+                                display_image = await asyncio.to_thread(draw_grid_on_image, screenshot.copy(), grid_spacing=10)
+                                grid_hint = "\n\n【system info】Current desktop screenshot with coordinate grid (0-1000) is injected. Use coordinates for precise clicking."
+                            else:
+                                display_image = screenshot
+                                grid_hint = "\n\n【system info】Current desktop screenshot is injected."
                             
                             # 5. 保存并注入
                             desktop_img_name = f"desktop_grid_{uuid.uuid4().hex}.png"
                             desktop_img_path = os.path.join(UPLOAD_FILES_DIR, desktop_img_name)
                             
-                            # 保存处理后的带网格图片
-                            await asyncio.to_thread(grid_image.save, desktop_img_path, optimize=True)
+                            # 保存处理后的图片
+                            await asyncio.to_thread(display_image.save, desktop_img_path, optimize=True)
                             
                             desktop_url = f"{fastapi_base_url}uploaded_files/{desktop_img_name}"
                             
@@ -4245,8 +4267,28 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                             
                             print(f"带网格截图已注入: {desktop_url}")
                             
+                            if settings.get('visionControlSettings', {}).get('onlyNewScreen', False):
+                                # 遍历除最后一条（刚刚注入了新截图的）消息之外的所有历史消息
+                                for msg in request.messages[:-1]:
+                                    if isinstance(msg.get('content'), list):
+                                        # 过滤掉所有图片内容，只保留文本
+                                        msg['content'] = [
+                                            item for item in msg['content'] 
+                                            if item.get('type') != 'image_url'
+                                        ]
+                                        
+                                        # 可选：如果过滤后 list 只剩一个文本项，可以将其还原为纯字符串格式
+                                        if len(msg['content']) == 1 and msg['content'][0].get('type') == 'text':
+                                            msg['content'] = msg['content'][0]['text']
+                                        elif len(msg['content']) == 0:
+                                            # 如果该消息原本只有图片（虽然在对话中少见），可设置为空字符串防止报错
+                                            msg['content'] = ""
+                                
+                                print("已清理历史消息中的旧截图，仅保留最新屏幕状态。")
+
                         except Exception as e:
                             print(f"后端桌面截图失败: {e}")
+                            
                         images = await images_in_messages(request.messages,fastapi_base_url)
                         request.messages = await message_without_images(request.messages)
                     msg = await images_add_in_messages(request.messages, images,settings)

@@ -368,6 +368,8 @@ let vue_data = {
       mouse:true,
       keyboard:true,
       desktopVision: true,
+      onlyNewScreen: true,
+      isEnableGrid: true, // 是否启用网格
     },
     ccSettings: {
       enabled: false,

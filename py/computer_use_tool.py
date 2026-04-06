@@ -100,23 +100,42 @@ async def mouse_double_click_async(button: str = "left", x: Optional[float] = No
 
 
 @require_gui
-async def mouse_drag_async(x: float, y: float, duration: float = 0.5, button: str = "left") -> str:
-    """拖拽鼠标到指定千分比位置"""
-    if x < 0 or x > 1000 or y < 0 or y > 1000:    
-        return "千分比坐标超出范围，请输入 0 到 1000 之间的值。"
-    
-    px, py = _percent_to_pixel(x, y)
-    
-    def _drag():
-        pyautogui.mouseDown(button=button)
-        time.sleep(0.05)
-        pyautogui.moveTo(px, py, duration=duration)
-        time.sleep(0.05)
-        pyautogui.mouseUp(button=button)
+async def mouse_drag_async(x1: float, y1: float, x2: float, y2: float, duration: float = 1.0, button: str = "left") -> str:
+    """从起始位置 (x1, y1) 拖拽到终点位置 (x2, y2)。坐标均为千分比。"""
+    try:
+        # 1. 验证坐标范围
+        coords = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        for name, val in coords.items():
+            if val < 0 or val > 1000:
+                return f"错误：{name} 坐标 ({val}) 超出范围，请输入 0 到 1000 之间的值。"
         
-    await asyncio.to_thread(_drag)
-    return f"鼠标已按住 {button} 键拖拽到了位置 ({x}‰, {y}‰)。"
-
+        px1, py1 = _percent_to_pixel(x1, y1)
+        px2, py2 = _percent_to_pixel(x2, y2)
+        
+        def _drag():
+            # 1. 先精准移动到起点
+            pyautogui.moveTo(px1, py1, duration=0.2)
+            
+            # 2. 【关键】给 UI 0.2 秒的反应时间，让元素进入“悬停/可交互”状态
+            time.sleep(0.2) 
+            
+            # 3. 【关键】使用 pyautogui 原生的 dragTo，而不是 mouseDown + moveTo
+            # dragTo 会在底层操作系统级别发送正确的 Drag 事件，而不是 Move 事件
+            pyautogui.dragTo(
+                x=px2, 
+                y=py2, 
+                duration=duration, 
+                button=button, 
+                tween=pyautogui.easeInOutQuad
+            )
+            
+            # 4. 拖拽到位后，稍微停顿一下再彻底结束（防止有些软件还没判定落点）
+            time.sleep(0.1)
+            
+        await asyncio.to_thread(_drag)
+        return f"已成功将鼠标从 ({x1}‰, {y1}‰) 拖拽到 ({x2}‰, {y2}‰)，按键：{button}，耗时 {duration} 秒。"
+    except Exception as e:
+        return f"拖拽失败：{e}"
 
 @require_gui
 async def mouse_scroll_async(clicks: int) -> str:
@@ -319,21 +338,22 @@ mouse_double_click_tool = {
     }
 }
 
-
 mouse_drag_tool = {
     "type": "function",
     "function": {
         "name": "mouse_drag_async",
-        "description": "按住鼠标按键并拖拽到指定千分比位置。常用于拖动窗口、滑块、框选等操作。",
+        "description": "按下鼠标按键从起始坐标拖动到终点坐标。常用于拖动窗口、滑块、移动文件或框选一段区域。",
         "parameters": {
             "type": "object",
             "properties": {
-                "x": {"type": "number", "description": "拖拽终点水平坐标（0 到 1000 的千分比）","maximum": 1000, "minimum": 0},
-                "y": {"type": "number", "description": "拖拽终点垂直坐标（0 到 1000 的千分比）","maximum": 1000, "minimum": 0},
-                "duration": {"type": "number", "description": "拖拽过程耗时（秒）", "default": 0.5},
+                "x1": {"type": "number", "description": "起始点水平坐标 (0-1000)","maximum": 1000, "minimum": 0},
+                "y1": {"type": "number", "description": "起始点垂直坐标 (0-1000)","maximum": 1000, "minimum": 0},
+                "x2": {"type": "number", "description": "终点水平坐标 (0-1000)","maximum": 1000, "minimum": 0},
+                "y2": {"type": "number", "description": "终点垂直坐标 (0-1000)","maximum": 1000, "minimum": 0},
+                "duration": {"type": "number", "description": "拖拽过程耗时（秒），默认为 1.0 秒", "default": 1.0},
                 "button": {"type": "string", "enum": ["left", "right"], "description": "按住哪个键拖拽，默认左键", "default": "left"}
             },
-            "required": ["x", "y"]
+            "required": ["x1", "y1", "x2", "y2"]
         }
     }
 }
