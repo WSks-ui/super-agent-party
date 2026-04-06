@@ -337,7 +337,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 from fastapi import status
-from fastapi.responses import JSONResponse, StreamingResponse,Response
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse,Response
 import uuid
 import time
 from typing import Any, AsyncIterator, List, Dict,Optional, Tuple, Union
@@ -7839,6 +7839,7 @@ async def text_to_speech(request: Request):
                         "X-Audio-Format": "mp3"
                     }
                 )
+            
         raise HTTPException(status_code=400, detail="不支持的TTS引擎")
     
     except Exception as e:
@@ -9745,6 +9746,9 @@ from py.live_router import router as live_router, ws_router as live_ws_router
 app.include_router(live_router)     # /api/live/*
 app.include_router(live_ws_router)  # /ws/live/*
 
+
+from py.overlay_router import router as overlay_router
+app.include_router(overlay_router)
 
 # ---------- 工具 ----------
 def get_dir(mid: str) -> str:
