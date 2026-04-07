@@ -971,6 +971,7 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         search_arxiv_papers
     )
     from py.autoBehavior import auto_behavior
+    from py.tts_tool import handle_tts_tool_call
 
     # Docker CLI 工具（原有）
     from py.cli_tool import (
@@ -1153,7 +1154,10 @@ async def dispatch_tool(tool_name: str, tool_params: dict, settings: dict) -> st
         "keyboard_hotkey_async":keyboard_hotkey_async,
         "keyboard_hold_async":keyboard_hold_async,
         "wait_async":wait_async,
-        "screenshot_async":screenshot_async
+        "screenshot_async":screenshot_async,
+
+        # TTS 语音合成工具（Agentic Voice）
+        "voice_speak": handle_tts_tool_call,
     }
     
     # ==================== 3. 权限拦截逻辑 (Human-in-the-loop) ====================
@@ -2781,6 +2785,16 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
         get_a2a_tool_fuction = await get_a2a_tool(settings)
         if get_a2a_tool_fuction:
             tools.append(get_a2a_tool_fuction)
+
+        # TTS Tool (Agentic Voice)
+        from py.tts_tool import get_tts_tool, get_tts_tool_stream
+        tts_tool = await get_tts_tool(settings)
+        if tts_tool:
+            tools.append(tts_tool)
+        tts_stream_tool = await get_tts_tool_stream(settings)
+        if tts_stream_tool:
+            tools.append(tts_stream_tool)
+
         if settings["HASettings"]["enabled"]:
             ha_tool = await HA_client.get_openai_functions(disable_tools=[])
             if ha_tool:
@@ -3888,8 +3902,13 @@ async def generate_stream_response(client, reasoner_client, request: ChatRequest
                         yield f"data: {json.dumps(call_confirm_chunk)}\n\n"
 
                         modified_tool = f"{await t("sendArg")}{data_list[0]}"
-                        
-                        if settings['tools']['asyncTools']['enabled']:
+
+                        if response_content.name == "voice_speak":
+                            results = f"{response_content.name} tool is running in background, audio will be pushed via WebSocket."
+                            asyncio.create_task(
+                                dispatch_tool(response_content.name, data_list[0], settings)
+                            )
+                        elif settings['tools']['asyncTools']['enabled']:
                             # ... 异步工具逻辑保持不变 ...
                             tool_id = uuid.uuid4()
                             async_tool_id = f"{response_content.name}_{tool_id}"
@@ -7354,6 +7373,9 @@ class TTSConnectionManager:
 
 tts_manager = TTSConnectionManager()
 
+from py.tts_tool import set_tts_manager
+set_tts_manager(tts_manager)
+
 async def broadcast_to_vrm(self, message: Union[str, bytes]):
     if not self.vrm_connections:
         return
@@ -7382,6 +7404,116 @@ async def tts_websocket_endpoint(websocket: WebSocket):
                 await tts_manager.broadcast_to_vrm(msg["text"])
     except WebSocketDisconnect:
         tts_manager.disconnect_main(websocket)
+
+@app.websocket("/ws/tts/stream")
+async def tts_stream_websocket(websocket: WebSocket):
+    """
+    TTS 流式 WebSocket 端点（Tool Calling 架构）
+
+    协议：
+    1. 客户端发送 {"type": "init", "voice_id": "xxx", "language": "zh", "session_id": "xxx"}
+    2. 客户端发送 {"type": "speak", "text": "xxx"}
+    3. 服务端发送 {"type": "audio_chunk", "audio": "base64...", "chunk_index": 0, "is_final": false}
+    4. 服务端发送 {"type": "audio_complete", "total_chunks": N, "total_bytes": M}
+    5. 客户端发送 {"type": "get_status"} 获取策略状态
+    """
+    import uuid
+    from py.tts_policy import tts_policy_manager
+    from py.tts_adapter import tts_adapter
+
+    session_id = str(uuid.uuid4())
+    voice_id = "default"
+    language = "zh"
+    settings = None
+
+    await websocket.accept()
+
+    try:
+        async for message in websocket.iter_json():
+            msg_type = message.get("type")
+
+            if msg_type == "init":
+                voice_id = message.get("voice_id", "default")
+                language = message.get("language", "zh")
+                session_id = message.get("session_id", session_id)
+                await websocket.send_json({
+                    "type": "init_response",
+                    "session_id": session_id,
+                    "voice_id": voice_id,
+                    "language": language,
+                    "status": "ready"
+                })
+
+            elif msg_type == "speak":
+                text = message.get("text", "")
+                if not text:
+                    await websocket.send_json({"type": "error", "error": "文本为空"})
+                    continue
+
+                policy = tts_policy_manager.get_policy(session_id)
+                is_allowed, reason = policy.check(text, voice_id)
+
+                if not is_allowed:
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": f"策略拦截: {reason}",
+                        "policy_info": policy.get_stats()
+                    })
+                    continue
+
+                if settings is None:
+                    settings = await load_settings()
+
+                tts_settings = settings.get("ttsSettings", {})
+                engine = tts_settings.get("engine", "edge")
+
+                try:
+                    chunk_index = 0
+                    total_bytes = 0
+
+                    async for audio_data in tts_adapter.synthesize_stream(
+                        text=text,
+                        engine=engine,
+                        voice_id=voice_id,
+                        language=language,
+                    ):
+                        audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+                        await websocket.send_json({
+                            "type": "audio_chunk",
+                            "session_id": session_id,
+                            "audio": audio_b64,
+                            "chunk_index": chunk_index,
+                            "is_final": False,
+                            "timestamp": time.time(),
+                        })
+                        chunk_index += 1
+                        total_bytes += len(audio_data)
+
+                    await websocket.send_json({
+                        "type": "audio_complete",
+                        "session_id": session_id,
+                        "total_chunks": chunk_index,
+                        "total_bytes": total_bytes,
+                    })
+
+                except Exception as e:
+                    logging.error(f"TTS 流式合成失败: {e}")
+                    await websocket.send_json({"type": "error", "error": str(e)})
+
+            elif msg_type == "get_status":
+                policy = tts_policy_manager.get_policy(session_id)
+                await websocket.send_json({
+                    "type": "status",
+                    "session_id": session_id,
+                    "stats": policy.get_stats()
+                })
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logging.error(f"TTS Stream WebSocket 错误: {e}")
+    finally:
+        pass
 
 @app.websocket("/ws/vrm")
 async def vrm_websocket_endpoint(websocket: WebSocket):
