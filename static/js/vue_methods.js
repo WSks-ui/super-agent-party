@@ -8830,8 +8830,64 @@ handleCreateSlackSeparator(val) {
       this.ttsWebSocket.onerror = (error) => {
         console.error('TTS WebSocket error:', error);
       };
+
+      this.ttsWebSocket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+
+          if (msg.type === 'tts_audio' && msg.audio) {
+            const audio_b64 = msg.audio;
+            const audio_bytes = Uint8Array.from(atob(audio_b64), c => c.charCodeAt(0));
+            const blob = new Blob([audio_bytes], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+
+            if (!this.ttsAudioQueue) {
+              this.ttsAudioQueue = [];
+              this.ttsAudioPlaying = false;
+            }
+
+            this.ttsAudioQueue.push(url);
+
+            if (!this.ttsAudioPlaying) {
+              this._playNextAudio();
+            }
+          } else if (msg.type === 'tts_complete') {
+            console.log('TTS complete:', msg);
+          } else if (msg.type === 'tts_error') {
+            console.error('TTS error:', msg.error);
+          }
+        } catch (e) {
+          console.error('TTS WebSocket message parse error:', e);
+        }
+      };
     },
-    
+
+    _playNextAudio() {
+      if (this.ttsAudioQueue && this.ttsAudioQueue.length > 0) {
+        const url = this.ttsAudioQueue.shift();
+        const audio = new Audio(url);
+        this.ttsAudioPlaying = true;
+
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          this.ttsAudioPlaying = false;
+          this._playNextAudio();
+        };
+
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          this.ttsAudioPlaying = false;
+          this._playNextAudio();
+        };
+
+        audio.play().catch(e => {
+          console.error('Audio play failed:', e);
+          this.ttsAudioPlaying = false;
+          this._playNextAudio();
+        });
+      }
+    },
+
     // 发送 TTS 状态到 VRM
     async sendTTSStatusToVRM(type, data) {
       if (this.ttsWebSocket && this.wsConnected) {

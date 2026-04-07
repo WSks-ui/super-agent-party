@@ -1,0 +1,86 @@
+{
+  "name": "教育数字人VRM配置",
+  "version": "1.0.0",
+  "description": "专为教育场景设计的VRM数字人配置",
+  "VRMConfig": {
+    "name": "张教授",
+    "enabledExpressions": true,
+    "enabledMotions": true,
+    "selectedModelId": "alice",
+    "windowWidth": 540,
+    "windowHeight": 960,
+    "defaultModels": [],
+    "userModels": [
+      {
+        "id": "professor_zhang",
+        "name": "张教授",
+        "path": "",
+        "description": "专业的虚拟科研导师形象"
+      }
+    ],
+    "defaultMotions": [],
+    "userMotions": [
+      {
+        "id": "thinking",
+        "name": "思考",
+        "path": "",
+        "description": "思考时的动作"
+      },
+      {
+        "id": "explaining",
+        "name": "讲解",
+        "path": "",
+        "description": "讲解时的动作"
+      },
+      {
+        "id": "listening",
+        "name": "倾听",
+        "path": "",
+        "description": "倾听时的动作"
+      },
+      {
+        "id": "encouraging",
+        "name": "鼓励",
+        "path": "",
+        "description": "鼓励时的动作"
+      }
+    ],
+    "selectedMotionIds": [],
+    "newVRM": {},
+    "selectedNewModelId": "alice",
+    "selectedNewMotionIds": [],
+    "gaussDefaultScenes": [],
+    "gaussUserScenes": [
+      {
+        "id": "study_room",
+        "name": "研究室",
+        "path": "",
+        "description": "学术研究场景"
+      },
+      {
+        "id": "classroom",
+        "name": "教室",
+        "path": "",
+        "description": "教学场景"
+      }
+    ],
+    "selectedGaussSceneId": "study_room"
+  },
+  "voiceSettings": {
+    "enabled": true,
+    "engine": "edgetts",
+    "language": "zh-CN",
+    "gender": "Male",
+    "voice": "YunxiNeural",
+    "rate": 1.0,
+    "pitch": 1.0
+  },
+  "interactionSettings": {
+    "autoResponse": true,
+    "responseDelay": 500,
+    "eyeContact": true,
+    "lipSync": true,
+    "facialExpressions": true,
+    "bodyMovements": true
+  }
+}

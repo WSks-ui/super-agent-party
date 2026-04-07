@@ -1,0 +1,62 @@
+{
+  "name": "教育研究工具链",
+  "version": "1.0.0",
+  "description": "教育数字人专用工具链配置",
+  "tools": {
+    "webSearch": {
+      "enabled": true,
+      "engine": "duckduckgo",
+      "when": "after_thinking",
+      "duckduckgo_max_results": 5,
+      "comment": "用于文献检索和学术信息查询"
+    },
+    "wikipedia": {
+      "enabled": true,
+      "comment": "获取基础概念和理论背景"
+    },
+    "arxiv": {
+      "enabled": true,
+      "comment": "检索学术论文预印本"
+    },
+    "code": {
+      "enabled": true,
+      "engine": "local",
+      "comment": "用于数据分析和统计计算"
+    },
+    "knowledgeBase": {
+      "enabled": true,
+      "when": "after_thinking",
+      "top_n": 3,
+      "comment": "使用教育研究方法知识库"
+    },
+    "time": {
+      "enabled": true,
+      "triggerMode": "beforeThinking",
+      "comment": "帮助规划研究时间线"
+    },
+    "getFile": {
+      "enabled": true,
+      "comment": "读取研究相关文档和数据文件"
+    }
+  },
+  "memorySettings": {
+    "is_memory": true,
+    "memoryLimit": 50,
+    "userName": "同学",
+    "comment": "记录研究进展和学习历程"
+  },
+  "ttsSettings": {
+    "enabled": true,
+    "engine": "edgetts",
+    "edgettsLanguage": "zh-CN",
+    "edgettsVoice": "XiaoxiaoNeural",
+    "edgettsRate": 1.0,
+    "comment": "语音合成，便于听觉学习"
+  },
+  "asrSettings": {
+    "enabled": true,
+    "engine": "webSpeech",
+    "webSpeechLanguage": "zh-CN",
+    "comment": "语音识别，支持语音提问"
+  }
+}
