@@ -262,6 +262,7 @@ class GSVTTTSEngine(TTSEngineBase):
             return response.content
 
 
+<<<<<<< HEAD
 class VolcengineTTSEngine(TTSEngineBase):
     """火山引擎 Volcengine TTS 引擎"""
     
@@ -338,6 +339,8 @@ class VolcengineTTSEngine(TTSEngineBase):
         return bytes(collected_audio)
 
 
+=======
+>>>>>>> b355e12ba0fea89a5e6bda58856669df1b807470
 class TTSAdapter:
     """
     TTS 适配器主类
@@ -352,8 +355,11 @@ class TTSAdapter:
         "dashscope": DashScopeTTSEngine,
         "gsv": GSVTTTSEngine,
         "gpt-sovits": GSVTTTSEngine,
+<<<<<<< HEAD
         "volcengine": VolcengineTTSEngine,
         "volcano": VolcengineTTSEngine,
+=======
+>>>>>>> b355e12ba0fea89a5e6bda58856669df1b807470
     }
 
     def __init__(self, default_engine: str = "edge", **default_kwargs):

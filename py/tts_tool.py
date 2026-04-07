@@ -245,6 +245,7 @@ async def handle_tts_tool_call(
                     voices_path=tts_settings.get("kokoroVoicesPath", ""),
                     speed=tts_settings.get("speed", 1.0),
                 )
+<<<<<<< HEAD
             elif engine == "volcengine" or engine == "volcano":
                 audio_iter = tts_adapter.synthesize_stream(
                     text=text,
@@ -256,6 +257,8 @@ async def handle_tts_tool_call(
                     resource_id=tts_settings.get("volcResourceId", "seed-tts-2.0"),
                     speed_ratio=float(tts_settings.get("volcRate", 1.0)),
                 )
+=======
+>>>>>>> b355e12ba0fea89a5e6bda58856669df1b807470
             else:
                 audio_iter = tts_adapter.synthesize_stream(
                     text=text,
